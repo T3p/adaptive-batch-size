@@ -1,6 +1,7 @@
 import gym
 from ifqi.envs.lqg1d import LQG1D
 import numpy as np
+from numpy.linalg import norm
 import math
 
 def gauss_policy(phi,theta,sigma):
@@ -27,16 +28,22 @@ if __name__ == '__main__':
                       np.dot(env.Q, env.max_pos)) + \
         np.dot(env.max_action, np.dot(env.R, env.max_action)))
     M_phi = env.max_pos
-    print action_volume, R, M_phi
 
     gamma = env.gamma    
-    sigma = 0.1
+    sigma = env.sigma_noise
     N = 10000   #batch size
-    H = 20      #episode length
+    H = env.horizon
     theta = np.zeros((m))
     alpha = 0.0001 #learning rate
+    #delta = 0.01
     b = 0 #baseline
- 
+
+    c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
+            (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))
+    
+    #d = math.sqrt((R**2*M_phi**2*H*(1-gamma**H)**2)/ \
+    #                (sigma**2*(1-gamma)**2*delta)) 
+
     for i in range(max_iter): 
         if verbose > 0:
             print 'iteration:', i, 'theta:', theta, 'theta*:', theta_star
@@ -45,12 +52,10 @@ if __name__ == '__main__':
             break
         
         grad_J = np.zeros((m))
-
-        #batch
-        for _ in range(N):
+    
+        for n in range(N):
             #episode
-            env.reset()
-            s = env.get_state()
+            s = env.reset()
             states = []
             actions = []  
             g = 0
@@ -69,7 +74,13 @@ if __name__ == '__main__':
             for k in range(H):
                 grad_J += gauss_score(states[k],actions[k],theta,sigma) * g
         grad_J/=N
+
         
+        #adaptive step size
+        alpha = norm(grad_J,2)**2/(2*c*norm(grad_J,1)**2)
+        if verbose > 0:
+            print 'alpha:', alpha
+                      
         #update
         theta+=alpha*grad_J
 
