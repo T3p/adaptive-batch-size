@@ -3,8 +3,8 @@ from ifqi.envs.lqg1d import LQG1D
 import numpy as np
 import math
 
-def gauss_policy(s,theta,sigma):
-    return np.random.normal(s*theta,sigma)
+def gauss_policy(s,theta,sigma,noise):
+    return s*theta + noise*sigma
 
 def gauss_score(s,a,theta,sigma):
     return (a-s*theta)*s/(sigma**2)
@@ -20,8 +20,8 @@ if __name__ == '__main__':
         #np.dot(env.max_action, np.dot(env.R, env.max_action)))
     M_phi = env.max_pos
 
-    gamma = 0.95#env.gamma    
-    sigma = 10 
+    gamma = 0.99#env.gamma    
+    sigma = 8 
     N = 10000   #batch size
     H = 20 #env.horizon
     verbose = 1
@@ -31,6 +31,7 @@ if __name__ == '__main__':
     i = 0
     while True:
         i+=1 
+        noises = np.random.normal(0,1,N*H)
         if verbose > 0:
             print 'iteration:', i, 'theta:', theta, 'theta*:', theta_star
         
@@ -44,7 +45,7 @@ if __name__ == '__main__':
             score = 0  
             q = 0
             for l in range(H): 
-                a = gauss_policy(s,theta,sigma)
+                a = gauss_policy(s,theta,sigma,noises[n*H+l])
                 score+=gauss_score(s,a,theta,sigma)
                     
                 s,r,done,_ = env.step(a)
@@ -52,7 +53,7 @@ if __name__ == '__main__':
  
                 if abs(r) > R:
                     R = abs(r)  
-               
+             
             score_H.append(score)
             q_H.append(q)
         
