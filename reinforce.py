@@ -1,5 +1,5 @@
 import gym
-from ifqi.envs.lqg1d import LQG1D
+from lqg1d import LQG1D
 import numpy as np
 import math
 
@@ -15,18 +15,16 @@ if __name__ == '__main__':
     theta_star = env.computeOptimalK()[0] 
 
     action_volume = 2*env.max_action
-    R = -np.inf#np.asscalar(np.dot(env.max_pos,
-                      #np.dot(env.Q, env.max_pos)) + \
-        #np.dot(env.max_action, np.dot(env.R, env.max_action)))
+    R = 0.5*(env.max_pos**2+env.max_action**2)
     M_phi = env.max_pos
 
-    gamma = 0.99#env.gamma    
-    sigma = 8 
+    gamma = env.gamma    
+    sigma = 1 
     N = 10000   #batch size
-    H = 20 #env.horizon
+    H = env.horizon
     verbose = 1
     theta = 0
-    delta = 0.1
+    delta = 0.15
     
     i = 0
     while True:
@@ -45,15 +43,14 @@ if __name__ == '__main__':
             score = 0  
             q = 0
             for l in range(H): 
-                a = gauss_policy(s,theta,sigma,noises[n*H+l])
+                a = np.clip(gauss_policy(s,theta,sigma,noises[n*H+l]),-env.max_action,env.max_action)
                 score+=gauss_score(s,a,theta,sigma)
                     
                 s,r,done,_ = env.step(a)
+                if r>R:
+                    print r
                 q+= gamma**l*r
- 
-                if abs(r) > R:
-                    R = abs(r)  
-             
+              
             score_H.append(score)
             q_H.append(q)
         
