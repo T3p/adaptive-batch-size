@@ -1,4 +1,5 @@
 # Stato non clippato nell'environment
+#clippare azione nel learner?
 # delta?
 # R,M,|A|: teorico o storico?
-# 
+# sigma? (solved?) 
