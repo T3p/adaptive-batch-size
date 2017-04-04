@@ -67,30 +67,33 @@ if __name__ == '__main__':
     env.seed(seed)
     np.random.seed(seed)  
     
-    def simulate_batch():
-        s = env.reset()
-
-        noises = np.random.normal(0,1,H)
-        trace = []
-        for l in range(H): 
-            a = gauss_policy(s,theta,sigma,noises[l])
-            score = gauss_score(s,a,theta,sigma)
-            s,r,done,_ = env.step(a)
-            disc_reward = gamma**l*r 
-            trace.append((disc_reward,score))
-            
-        return trace
-   
     i = 0 #iteration
     while True:
         i+=1 
         if verbose > 0:
             print 'it:', i, 'theta:', theta, 'theta*:', theta_star
+        
+        noises = np.random.normal(0,1,(N,H))
+        
+        def simulate_batch(n):
+            s = env.reset()
+
+            
+            trace = []
+            for l in range(H): 
+                a = gauss_policy(s,theta,sigma,noises[n,l])
+                score = gauss_score(s,a,theta,sigma)
+                s,r,done,_ = env.step(a)
+                disc_reward = gamma**l*r 
+                trace.append((disc_reward,score))
+            
+            return trace
+   
          
         #for n in range(N): 
         #########################
         n_cores = multiprocessing.cpu_count()
-        traces = Parallel(n_jobs=n_cores)(delayed(simulate_batch)() for _ in range(N))                 
+        traces = Parallel(n_jobs=n_cores)(delayed(simulate_batch)(n) for n in range(N))                 
         traces = np.reshape(traces,(N,H,2))
         disc_rewards = traces[:,:,0]
         scores = traces[:,:,1]
