@@ -4,10 +4,6 @@ import numpy as np
 import math
 import sys
 
-#parallelism
-from joblib import Parallel, delayed
-import multiprocessing
-
 def gauss_policy(s,theta,sigma,noise):
     return s*theta + noise*sigma
 
@@ -70,35 +66,21 @@ if __name__ == '__main__':
     i = 0 #iteration
     while True:
         i+=1 
+        noises = np.random.normal(0,1,(N,H))
         if verbose > 0:
             print 'it:', i, 'theta:', theta, 'theta*:', theta_star
-        
-        noises = np.random.normal(0,1,(N,H))
-        
-        def simulate_batch(n):
+         
+        disc_rewards = np.zeros((N,H))
+        scores = np.zeros((N,H))
+        for n in range(N): 
             s = env.reset()
 
-            
-            trace = []
             for l in range(H): 
                 a = gauss_policy(s,theta,sigma,noises[n,l])
-                score = gauss_score(s,a,theta,sigma)
+                scores[n,l] = gauss_score(s,a,theta,sigma)
                 s,r,done,_ = env.step(a)
-                disc_reward = gamma**l*r 
-                trace.append((disc_reward,score))
+                disc_rewards[n,l] = gamma**l*r                
             
-            return trace
-   
-         
-        #for n in range(N): 
-        #########################
-        n_cores = multiprocessing.cpu_count()
-        traces = Parallel(n_jobs=n_cores)(delayed(simulate_batch)(n) for n in range(N))                 
-        traces = np.reshape(traces,(N,H,2))
-        disc_rewards = traces[:,:,0]
-        scores = traces[:,:,1]
-        ###########################
-
         grad_J = grad_estimator(scores,disc_rewards)            
             
         # adaptive step size
@@ -107,12 +89,11 @@ if __name__ == '__main__':
     
         epsilon = d/math.sqrt(N)
         if verbose > 0:
-            print 'epsilon:', epsilon, 'grad:', grad_J
+            print 'epsilon:', epsilon, 'grad:', grad_J 
         if verbose > 1:
-            N_star = (8/(13-3*math.sqrt(17)))*d**2/grad_J**2
-            print 'N*:', N_star  
+            N_star = (8/(13-3*math.sqrt(17)))*d**2/grad_J**2     
+            print 'N*:', N_star      
 
-         
         down = max(abs(grad_J) - epsilon,0)
         if down==0:
             break

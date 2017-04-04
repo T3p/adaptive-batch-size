@@ -4,6 +4,13 @@ import numpy as np
 import math
 import sys
 
+#parallelism
+from joblib import Parallel, delayed
+import multiprocessing
+import tempfile, os
+
+import time
+
 def gauss_policy(s,theta,sigma,noise):
     return s*theta + noise*sigma
 
@@ -48,66 +55,80 @@ if __name__ == '__main__':
     R = np.asscalar(env.Q*env.max_pos**2+env.R*env.max_action**2)
     M_phi = env.max_pos
 
-    gamma = 0.9#env.gamma    
-    sigma = 2#1 
-    N = int(sys.argv[1])   #batch size
+    gamma = 0.9 #env.gamma    
+    sigma = 2 #1 
+    N = int(sys.argv[1]) #batch size
     H = env.horizon
     theta = 0 #initial value
     delta = 0.2
     grad_estimator = reinforce_grad
     d = reinforce_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
-
+    c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
+            (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))
+    epsilon = d/math.sqrt(N)
+    
     seed = None
     verbose = 1
     record = len(sys.argv) > 2
     env.seed(seed)
     np.random.seed(seed)  
-    
-    i = 0 #iteration
-    while True:
-        i+=1 
-        noises = np.random.normal(0,1,(N,H))
-        if verbose > 0:
-            print 'it:', i, 'theta:', theta, 'theta*:', theta_star
-         
-        disc_rewards = np.zeros((N,H))
-        scores = np.zeros((N,H))
-        for n in range(N): 
-            s = env.reset()
+  
+    #trajectory to run in parallel
+    def trajectory(n,traces):
+        s = env.reset()
+        
+        #noise realization
+        noises = np.random.normal(0,1,H)            
 
-            for l in range(H): 
-                a = gauss_policy(s,theta,sigma,noises[n,l])
-                scores[n,l] = gauss_score(s,a,theta,sigma)
-                s,r,done,_ = env.step(a)
-                disc_rewards[n,l] = gamma**l*r                
+        for l in range(H): 
+            a = gauss_policy(s,theta,sigma,noises[l])
+            traces[n,l,0] = gauss_score(s,a,theta,sigma)
+            s,r,done,_ = env.step(a)
+            traces[n,l,1] = gamma**l*r 
+        
+    
+    #Learning
+    iteration = 0
+    while True: 
+        iteration+=1 
+        if verbose > 0:
+            start = time.time()
+            print 'iteration:', iteration, 'theta:', theta, 'theta*:', theta_star
             
+        #Run N trajectories in parallel 
+        n_cores = multiprocessing.cpu_count()
+        path = tempfile.mkdtemp()
+        traces_path = os.path.join(path,'traces.mmap')
+        traces = np.memmap(traces_path,dtype=float,shape=(N,H,2),mode='w+')  
+        Parallel(n_jobs=n_cores)(delayed(trajectory)(n,traces) for n in xrange(N))                  
+        scores = traces[:,:,0]
+        disc_rewards = traces[:,:,1]
+
+        #Gradient estimation
         grad_J = grad_estimator(scores,disc_rewards)            
-            
-        # adaptive step size
-        c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
-            (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))
-    
-        epsilon = d/math.sqrt(N)
+        del traces,scores,disc_rewards
         if verbose > 0:
-            print 'epsilon:', epsilon, 'grad:', grad_J 
+            print 'epsilon:', epsilon, 'grad:', grad_J
         if verbose > 1:
-            N_star = (8/(13-3*math.sqrt(17)))*d**2/grad_J**2     
-            print 'N*:', N_star      
+            N_star = (8/(13-3*math.sqrt(17)))*d**2/grad_J**2
+            print 'N*:', N_star  
 
+        #Adaptive step-size
         down = max(abs(grad_J) - epsilon,0)
         if down==0:
             break
         up = np.abs(grad_J) + epsilon
-        
         alpha = down**2/(2*c*up**2)
         if verbose > 0:
             print 'alpha:', alpha
         
         #update
         theta+=alpha*grad_J
+        
+        if(verbose>0):
+            print 'time:', time.time()-start, 's','\n'
     
     print 'alpha=0 in',i,'iterations, theta =',theta
     if record:
         fp = open(sys.argv[2],'a')    
-        fp.write('{} {}\n'.format(i,theta))
-        fp.close()
+
