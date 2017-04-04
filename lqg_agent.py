@@ -128,7 +128,7 @@ if __name__ == '__main__':
         if(verbose>0):
             print 'time:', time.time()-start, 's','\n'
     
-    print 'alpha=0 in',i,'iterations, theta =',theta
+    print '\nalpha=0 in',iteration,'iterations, theta =',theta
     if record:
         fp = open(sys.argv[2],'a')    
 
