@@ -48,8 +48,8 @@ if __name__ == '__main__':
     R = np.asscalar(env.Q*env.max_pos**2+env.R*env.max_action**2)
     M_phi = env.max_pos
 
-    gamma = env.gamma    
-    sigma = 1 
+    gamma = 0.9#env.gamma    
+    sigma = 2#1 
     N = int(sys.argv[1])   #batch size
     H = env.horizon
     theta = 0 #initial value
@@ -63,9 +63,6 @@ if __name__ == '__main__':
     env.seed(seed)
     np.random.seed(seed)  
     
-    if record:
-        fp = open(sys.argv[2],'a')    
-
     i = 0 #iteration
     while True:
         i+=1 
@@ -109,5 +106,6 @@ if __name__ == '__main__':
     
     print 'alpha=0 in',i,'iterations, theta =',theta
     if record:
+        fp = open(sys.argv[2],'a')    
         fp.write('{} {}\n'.format(i,theta))
         fp.close()
