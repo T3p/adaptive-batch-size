@@ -55,7 +55,7 @@ if __name__ == '__main__':
     R = np.asscalar(env.Q*env.max_pos**2+env.R*env.max_action**2)
     M_phi = env.max_pos
 
-    gamma = 0.9 #env.gamma    
+    gamma = env.gamma 
     sigma = 2 #1 
     N = int(sys.argv[1]) #batch size
     H = env.horizon
@@ -81,32 +81,33 @@ if __name__ == '__main__':
         noises = np.random.normal(0,1,H)            
 
         for l in range(H): 
-            a = gauss_policy(s,theta,sigma,noises[l])
+            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-2*env.max_action,2*env.max_action)
             traces[n,l,0] = gauss_score(s,a,theta,sigma)
-            s,r,done,_ = env.step(a)
+            s,r,_,_ = env.step(a)
             traces[n,l,1] = gamma**l*r 
         
     
     #Learning
     iteration = 0
+    path = tempfile.mkdtemp()
+    traces_path = os.path.join(path,'traces.mmap')
+    n_cores = multiprocessing.cpu_count() 
     while True: 
         iteration+=1 
         if verbose > 0:
             start = time.time()
             print 'iteration:', iteration, 'theta:', theta, 'theta*:', theta_star
             
-        #Run N trajectories in parallel 
-        n_cores = multiprocessing.cpu_count()
-        path = tempfile.mkdtemp()
-        traces_path = os.path.join(path,'traces.mmap')
+        #Run N trajectories in parallel  
         traces = np.memmap(traces_path,dtype=float,shape=(N,H,2),mode='w+')  
         Parallel(n_jobs=n_cores)(delayed(trajectory)(n,traces) for n in xrange(N))                  
         scores = traces[:,:,0]
         disc_rewards = traces[:,:,1]
-
+        del traces
+        
         #Gradient estimation
         grad_J = grad_estimator(scores,disc_rewards)            
-        del traces,scores,disc_rewards
+
         if verbose > 0:
             print 'epsilon:', epsilon, 'grad:', grad_J
         if verbose > 1:
@@ -114,10 +115,10 @@ if __name__ == '__main__':
             print 'N*:', N_star  
 
         #Adaptive step-size
-        down = max(abs(grad_J) - epsilon,0)
-        if down==0:
+        down = abs(grad_J) - epsilon
+        if down<=0:
             break
-        up = np.abs(grad_J) + epsilon
+        up = abs(grad_J) + epsilon
         alpha = down**2/(2*c*up**2)
         if verbose > 0:
             print 'alpha:', alpha

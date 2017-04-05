@@ -38,7 +38,7 @@ class LQG1D(gym.Env):
 
     def __init__(self, discrete_reward=False):
         self.horizon = 20
-        self.gamma = 0.95
+        self.gamma = 0.9
 
         self.discrete_reward = discrete_reward
         self.max_pos = 2.0
