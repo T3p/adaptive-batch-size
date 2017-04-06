@@ -57,15 +57,14 @@ if __name__ == '__main__':
 
     gamma = env.gamma 
     sigma = 1 
-    N = int(sys.argv[1]) #batch size
+    N = int(sys.argv[1]) #INITIAL batch size
     H = env.horizon
     theta = 0 #initial value
     delta = 0.2
-    grad_estimator = reinforce_grad
-    d = reinforce_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
+    grad_estimator = gpomdp_grad
+    d = gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
-            (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))
-    epsilon = d/math.sqrt(N)
+            (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
     seed = None
     verbose = 1
@@ -81,7 +80,7 @@ if __name__ == '__main__':
         noises = np.random.normal(0,1,H)            
 
         for l in range(H): 
-            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action,env.max_action)
+            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
             traces[n,l,0] = gauss_score(s,a,theta,sigma)
             s,r,_,_ = env.step(a)
             traces[n,l,1] = gamma**l*r 
@@ -96,7 +95,8 @@ if __name__ == '__main__':
         iteration+=1 
         if verbose > 0:
             start = time.time()
-            print 'iteration:', iteration, 'theta:', theta, 'theta*:', theta_star
+            print 'iteration:', iteration, 'theta:', theta, 'theta*:', theta_star 
+            print 'N =', N  
             
         #Run N trajectories in parallel  
         traces = np.memmap(traces_path,dtype=float,shape=(N,H,2),mode='w+')  
@@ -108,13 +108,10 @@ if __name__ == '__main__':
         #Gradient estimation
         grad_J = grad_estimator(scores,disc_rewards)            
 
+        #Adaptive step-size
+        epsilon = d/math.sqrt(N)
         if verbose > 0:
             print 'epsilon:', epsilon, 'grad:', grad_J
-        if verbose > 1:
-            N_star = (8/(13-3*math.sqrt(17)))*d**2/grad_J**2
-            print 'N*:', N_star  
-
-        #Adaptive step-size
         down = abs(grad_J) - epsilon
         if down<=0:
             break
@@ -123,8 +120,12 @@ if __name__ == '__main__':
         if verbose > 0:
             print 'alpha:', alpha
         
+        #Adaptive batch-size
+        N = int((8/(13-3*math.sqrt(17)))*d**2/grad_J**2)       
+        
         #update
         theta+=alpha*grad_J
+        
         
         if(verbose>0):
             print 'time:', time.time()-start, 's','\n'
