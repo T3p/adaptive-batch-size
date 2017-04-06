@@ -131,5 +131,6 @@ if __name__ == '__main__':
     
     print '\nalpha=0 in',iteration,'iterations, theta =',theta
     if record:
-        fp = open(sys.argv[2],'a')    
+        with open(sys.argv[2],'a') as fp:
+            fp.write("{} {}\n".format(iteration,theta))
 
