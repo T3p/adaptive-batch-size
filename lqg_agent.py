@@ -76,7 +76,6 @@ if __name__ == '__main__':
     #trajectory to run in parallel
     def trajectory(n,traces):
         s = env.reset()
-        
         #noise realization
         noises = np.random.normal(0,1,H)            
 
@@ -103,6 +102,7 @@ if __name__ == '__main__':
         Parallel(n_jobs=n_cores)(delayed(trajectory)(n,traces) for n in xrange(N))                  
         scores = traces[:,:,0]
         disc_rewards = traces[:,:,1]
+        J_est = np.mean(np.sum(disc_rewards,1))
         del traces
         
         #Gradient estimation
@@ -125,6 +125,11 @@ if __name__ == '__main__':
         
         #update
         theta+=alpha*grad_J
+        
+        #Performance
+        J = env.computeJ(theta,sigma)
+        if(verbose>0):
+            print 'J_est:', J_est, 'J:', J
         
         if(verbose>0):
             print 'time:', time.time()-start, 's','\n'

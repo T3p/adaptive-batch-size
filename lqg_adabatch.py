@@ -60,7 +60,7 @@ if __name__ == '__main__':
     N = int(sys.argv[1]) #INITIAL batch size
     H = env.horizon
     theta = 0 #initial value
-    delta = 0.2
+    delta = float(sys.argv[2])
     grad_estimator = gpomdp_grad
     d = gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
@@ -68,9 +68,9 @@ if __name__ == '__main__':
     
     seed = None
     verbose = 1
-    record = len(sys.argv) > 2
+    record = len(sys.argv) > 3
     env.seed(seed)
-    np.random.seed(seed)  
+    #np.random.seed(seed)  
   
     #trajectory to run in parallel
     def trajectory(n,traces):
@@ -80,13 +80,23 @@ if __name__ == '__main__':
         noises = np.random.normal(0,1,H)            
 
         for l in range(H): 
-            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
+            #a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
+            a = gauss_policy(s,theta,sigma,noises[l])
             traces[n,l,0] = gauss_score(s,a,theta,sigma)
             s,r,_,_ = env.step(a)
             traces[n,l,1] = gamma**l*r 
         
-    
+    if record:
+        fp = open(sys.argv[3],'w')    
+
     #Learning
+    J_est = J = -np.inf 
+    #Step-size
+    alpha = (13-3*math.sqrt(17))/(4*c)
+    if verbose>0:
+        print 'alpha:', alpha, 'theta*:', theta_star, '\n' 
+    if record:
+        fp.write("{} {} {}\n\n".format(grad_estimator.__name__,delta,alpha))
     iteration = 0
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
@@ -95,43 +105,50 @@ if __name__ == '__main__':
         iteration+=1 
         if verbose > 0:
             start = time.time()
-            print 'iteration:', iteration, 'theta:', theta, 'theta*:', theta_star 
-            print 'N =', N  
+            print 'iteration:', iteration, 'N:', N, 'theta:', theta  
             
         #Run N trajectories in parallel  
         traces = np.memmap(traces_path,dtype=float,shape=(N,H,2),mode='w+')  
         Parallel(n_jobs=n_cores)(delayed(trajectory)(n,traces) for n in xrange(N))                  
         scores = traces[:,:,0]
         disc_rewards = traces[:,:,1]
+        #Performance estimation
+        J_est0 = J_est
+        J0 = J
+        J_est = np.mean(np.sum(disc_rewards,1))
+        J = env.computeJ(theta,sigma,N)
+        deltaJ_est = J_est - J_est0
+        deltaJ = J - J0
+        if verbose>0:   
+            print 'J:', J, 'J~:', J_est
+            print 'deltaJ:', deltaJ, 'deltaJ~:', deltaJ_est
         del traces
         
         #Gradient estimation
         grad_J = grad_estimator(scores,disc_rewards)            
 
-        #Adaptive step-size
+        #Stopping condition
         epsilon = d/math.sqrt(N)
         if verbose > 0:
             print 'epsilon:', epsilon, 'grad:', grad_J
         down = abs(grad_J) - epsilon
         if down<=0:
             break
-        up = abs(grad_J) + epsilon
-        alpha = down**2/(2*c*up**2)
-        if verbose > 0:
-            print 'alpha:', alpha
-        
-        #Adaptive batch-size
-        N = int((8/(13-3*math.sqrt(17)))*d**2/grad_J**2)       
-        
+         
+        if record:
+            fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,J,J_est,down))         
+
         #update
         theta+=alpha*grad_J
-        
-        
-        if(verbose>0):
-            print 'time:', time.time()-start, 's','\n'
+
+        #Adaptive batch-size (for next batch)
+        N = int((8/(13-3*math.sqrt(17)))*d**2/grad_J**2)+1   
+
+        if verbose>0:
+            print 'time:', time.time() - start, '\n'
+          
     
-    print '\nalpha=0 in',iteration,'iterations, theta =',theta
+    print '\nStopped after',iteration,'iterations, theta =',theta
     if record:
-        with open(sys.argv[2],'a') as fp:
-            fp.write("{} {}\n".format(iteration,theta))
+        fp.close()
 

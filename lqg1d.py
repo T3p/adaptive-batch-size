@@ -213,15 +213,20 @@ class LQG1D(gym.Env):
             Sigma = np.array([Sigma]).reshape(1, 1)
 
         P = self._computeP2(K)
+        W =  (1 / (1 - self.gamma)) * \
+                np.trace(np.dot(
+                    Sigma, (self.R + self.gamma * np.dot(self.B.T,
+                                             np.dot(P, self.B))))) 
+        
+        if np.size(K)==1:
+            return np.asscalar(-self.max_pos**2*P/3 - W)
+
         J = 0.0
         for i in range(n_random_x0):
             self.reset()
             x0 = self.get_state()
             J -= np.dot(x0.T, np.dot(P, x0)) \
-                + (1 / (1 - self.gamma)) * \
-                np.trace(np.dot(
-                    Sigma, (self.R + self.gamma * np.dot(self.B.T,
-                                                         np.dot(P, self.B)))))
+                +  W      
         J /= n_random_x0
         return J
 
