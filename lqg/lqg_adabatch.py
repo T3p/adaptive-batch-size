@@ -103,6 +103,7 @@ if __name__ == '__main__':
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
     n_cores = multiprocessing.cpu_count() 
+    N_tot = N
     while True: 
         iteration+=1 
         if verbose > 0:
@@ -149,7 +150,8 @@ if __name__ == '__main__':
         if verbose>0:
             print 'time:', time.time() - start, '\n'
         
-        if N>N_max:
+        N_tot+=N
+        if N_tot>N_max:
             print "Max N reached"
             break
           

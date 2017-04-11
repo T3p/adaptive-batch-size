@@ -1,7 +1,7 @@
 import subprocess
 
 for delta in [float(x)/100 for x in range(100,0,-5)]:
-    max_N = 20000  
+    max_N = 30000000 
 
     filename = "results/adabatch_gpomdp_d{}_max_{}".format(delta,max_N)
     filename = filename.replace(".","_")
