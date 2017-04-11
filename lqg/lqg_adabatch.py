@@ -49,7 +49,7 @@ def gpomdp_d(R,M_phi,H,delta,sigma,gamma):
 if __name__ == '__main__':
     env = gym.make('LQG1D-v0')
 
-    theta_star = env.computeOptimalK()[0] 
+    theta_star = env.computeOptimalK()[0][0] 
    
     action_volume = 2*env.max_action #|A|
     R = np.asscalar(env.Q*env.max_pos**2+env.R*env.max_action**2)
@@ -70,7 +70,10 @@ if __name__ == '__main__':
     verbose = 1
     record = len(sys.argv) > 3
     env.seed(seed)
-    #np.random.seed(seed)  
+    np.random.seed(seed)  
+    N_max = np.inf
+    if len(sys.argv) > 4:
+        N_max = int(sys.argv[4])
   
     #trajectory to run in parallel
     def trajectory(n,traces):
@@ -80,8 +83,7 @@ if __name__ == '__main__':
         noises = np.random.normal(0,1,H)            
 
         for l in range(H): 
-            #a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
-            a = gauss_policy(s,theta,sigma,noises[l])
+            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
             traces[n,l,0] = gauss_score(s,a,theta,sigma)
             s,r,_,_ = env.step(a)
             traces[n,l,1] = gamma**l*r 
@@ -96,7 +98,7 @@ if __name__ == '__main__':
     if verbose>0:
         print 'alpha:', alpha, 'theta*:', theta_star, '\n' 
     if record:
-        fp.write("{} {} {}\n\n".format(grad_estimator.__name__,delta,alpha))
+        fp.write("{} {} {} {}\n\n".format(grad_estimator.__name__,delta,alpha,theta_star))
     iteration = 0
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
@@ -146,6 +148,10 @@ if __name__ == '__main__':
 
         if verbose>0:
             print 'time:', time.time() - start, '\n'
+        
+        if N>N_max:
+            print "Max N reached"
+            break
           
     
     print '\nStopped after',iteration,'iterations, theta =',theta
