@@ -61,8 +61,8 @@ if __name__ == '__main__':
     H = env.horizon
     theta = 0 #initial value
     delta = float(sys.argv[2])
-    grad_estimator = reinforce_grad
-    d = reinforce_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
+    grad_estimator = gpomdp_grad
+    d = gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
@@ -135,14 +135,15 @@ if __name__ == '__main__':
         if verbose > 0:
             print 'epsilon:', epsilon, 'grad:', grad_J
         down = abs(grad_J) - epsilon
-        if down<=0:
+        if iteration>1 and down<=0:
             break
          
         if record:
             fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,J,J_est,down))         
 
         #update
-        theta+=alpha*grad_J
+	if iteration>1:
+        	theta+=alpha*grad_J
 
         #Adaptive batch-size (for next batch)
         N = int((8/(13-3*math.sqrt(17)))*d**2/grad_J**2)+1   
