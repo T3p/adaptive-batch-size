@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-M = importdata('~/gradient_results/adabatch_gpomdp_d0_5_max_30000000.out',' ',1);
+M = importdata('~/adaptive-batch-size/results/adabatch_gpomdp_d1_1.out',' ',1);
 iteration = M.data(:,1);
 batchsize = M.data(:,2);
 performance = M.data(:,4);
