@@ -61,8 +61,8 @@ if __name__ == '__main__':
     H = env.horizon
     theta = 0 #initial value
     delta = float(sys.argv[2])
-    grad_estimator = gpomdp_grad
-    d = gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
+    grad_estimator = reinforce_grad
+    d = reinforce_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
