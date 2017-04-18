@@ -23,7 +23,7 @@ def reinforce_grad(scores,disc_rewards):
     #optimal baseline:
     b = np.mean(sum_of_scores**2*q)/np.mean(sum_of_scores**2)
     #gradient estimate:
-    return np.mean(sum_of_scores*(q-b))
+    return sum_of_scores*(q-b)
 
 def gpomdp_grad(scores,disc_rewards):
     H = scores.shape[1]
@@ -35,7 +35,7 @@ def gpomdp_grad(scores,disc_rewards):
         b[k] = np.mean(cumulative_scores[:,k]**2*disc_rewards[:,k])/ \
                     np.mean(cumulative_scores[:,k]**2)
     #gradient estimate:
-    return np.mean(sum(cumulative_scores[:,i]*(disc_rewards[:,i] - b[i]) for i in range(0,H)))
+    return sum(cumulative_scores[:,i]*(disc_rewards[:,i] - b[i]) for i in range(0,H))
        
 def reinforce_d(R,M_phi,H,delta,sigma,gamma):
     return math.sqrt((R**2*M_phi**2*H*(1-gamma**H)**2)/ \
@@ -46,10 +46,11 @@ def gpomdp_d(R,M_phi,H,delta,sigma,gamma):
                        ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
                             2 * gamma**H  * (1-gamma**H)/(1-gamma)))  
 
+#args: Ninit, delta, output, Nmax
 if __name__ == '__main__':
     env = gym.make('LQG1D-v0')
 
-    theta_star = env.computeOptimalK()[0] 
+    theta_star = env.computeOptimalK()[0][0] 
    
     action_volume = 2*env.max_action #|A|
     R = np.asscalar(env.Q*env.max_pos**2+env.R*env.max_action**2)
@@ -57,86 +58,111 @@ if __name__ == '__main__':
 
     gamma = env.gamma 
     sigma = 1 
-    N = int(sys.argv[1]) #batch size
+    N = int(sys.argv[1]) #INITIAL batch size
     H = env.horizon
     theta = 0 #initial value
-    delta = 0.2
-    grad_estimator = reinforce_grad
-    d = reinforce_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
+    delta = float(sys.argv[2])
+    grad_estimator = gpomdp_grad
+    d = gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
-            (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))
-    epsilon = d/math.sqrt(N)
-    
+            (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
+    seed = None
     verbose = 1
-    record = len(sys.argv) > 2
-    env.seed()
-    np.random.seed()  
+    record = len(sys.argv) > 3
+    N_max = np.inf
+    if len(sys.argv) > 4:
+        N_max = int(sys.argv[4])
   
     #trajectory to run in parallel
-    def trajectory(n,traces):
-        env.seed()
+    def trajectory(n,traces): 
+        env.seed(seed) #otherwise the state of the random device is just copied
         s = env.reset()
-        #noise realization
-        np.random.seed()
+        
+        #noise realization   
+        np.random.seed(seed)
         noises = np.random.normal(0,1,H)            
+        print noises[0]
 
         for l in range(H): 
-            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action,env.max_action)
+            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
             traces[n,l,0] = gauss_score(s,a,theta,sigma)
             s,r,_,_ = env.step(a)
             traces[n,l,1] = gamma**l*r 
         
-    
+    if record:
+        fp = open(sys.argv[3],'w')    
+
     #Learning
+    J_est = J = -np.inf 
+    #Step-size
+    alpha = (13-3*math.sqrt(17))/(4*c)
+    if verbose>0:
+        print 'alpha:', alpha, 'theta*:', theta_star, '\n' 
+    if record:
+        fp.write("{} {} {} {}\n\n".format(grad_estimator.__name__,delta,alpha,theta_star))
     iteration = 0
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
     n_cores = multiprocessing.cpu_count() 
+    N_tot = N
     while True: 
         iteration+=1 
         if verbose > 0:
             start = time.time()
-            print 'iteration:', iteration, 'theta:', theta, 'theta*:', theta_star
+            print 'iteration:', iteration, 'N:', N, 'theta:', theta  
             
         #Run N trajectories in parallel  
         traces = np.memmap(traces_path,dtype=float,shape=(N,H,2),mode='w+')  
         Parallel(n_jobs=n_cores)(delayed(trajectory)(n,traces) for n in xrange(N))                  
         scores = traces[:,:,0]
         disc_rewards = traces[:,:,1]
+        #Performance estimation
+        J_est0 = J_est
+        J0 = J
         J_est = np.mean(np.sum(disc_rewards,1))
+        J = env.computeJ(theta,sigma,N)
+        deltaJ_est = J_est - J_est0
+        deltaJ = J - J0
+        if verbose>0:   
+            print 'J:', J, 'J~:', J_est
+            print 'deltaJ:', deltaJ, 'deltaJ~:', deltaJ_est
         del traces
         
         #Gradient estimation
-        grad_J = grad_estimator(scores,disc_rewards)            
+        grads = grad_estimator(scores,disc_rewards)
+        grad_J = np.mean(grads)
+        maxGrad = max(grads)
+        minGrad = min(grads)            
 
+        #Stopping condition
+        epsilon = math.sqrt((math.log(1/delta)*(maxGrad-minGrad)**2)/(2*N))
         if verbose > 0:
             print 'epsilon:', epsilon, 'grad:', grad_J
-        if verbose > 1:
-            N_star = (8/(13-3*math.sqrt(17)))*d**2/grad_J**2
-            print 'N*:', N_star  
-
-        #Adaptive step-size
         down = abs(grad_J) - epsilon
-        if down<=0:
+        if iteration>1 and down<=0:
             break
-        up = abs(grad_J) + epsilon
-        alpha = down**2/(2*c*up**2)
-        if verbose > 0:
-            print 'alpha:', alpha
-        
+         
+        if record:
+            fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,J,J_est,down))         
+
         #update
-        theta+=alpha*grad_J
+	if iteration>1:
+        	theta+=alpha*grad_J
+
+        #Adaptive batch-size (for next batch)
+        N = int(math.log(1/delta)*(maxGrad - minGrad)**2*(13+3*math.sqrt(17))/ \
+                    (4*grad_J**2)) + 1   
+
+        if verbose>0:
+            print 'time:', time.time() - start, '\n'
         
-        #Performance
-        J = env.computeJ(theta,sigma)
-        if(verbose>0):
-            print 'J_est:', J_est, 'J:', J
-        
-        if(verbose>0):
-            print 'time:', time.time()-start, 's','\n'
+        N_tot+=N
+        if N_tot>N_max:
+            print "Max N reached"
+            break
+          
     
-    print '\nalpha=0 in',iteration,'iterations, theta =',theta
+    print '\nStopped after',iteration,'iterations, theta =',theta
     if record:
-        with open(sys.argv[2],'a') as fp:
-            fp.write("{} {}\n".format(iteration,theta))
+        fp.close()
 

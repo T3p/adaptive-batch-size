@@ -66,21 +66,23 @@ if __name__ == '__main__':
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
-    seed = None
     verbose = 1
     record = len(sys.argv) > 3
-    env.seed(seed)
-    np.random.seed(seed)  
+    env.seed()
+    np.random.seed()  
     N_max = np.inf
     if len(sys.argv) > 4:
         N_max = int(sys.argv[4])
   
     #trajectory to run in parallel
     def trajectory(n,traces):
+        env.seed()
         s = env.reset()
-        
+
         #noise realization
+        np.random.seed()
         noises = np.random.normal(0,1,H)            
+        
 
         for l in range(H): 
             a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
