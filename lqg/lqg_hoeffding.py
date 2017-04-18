@@ -27,6 +27,7 @@ def reinforce_grad(scores,disc_rewards):
 
 def gpomdp_grad(scores,disc_rewards):
     H = scores.shape[1]
+    N = scores.shape[0]
     cumulative_scores = np.zeros((N,H))
     #optimal baseline:
     b = np.zeros(H)
@@ -72,23 +73,17 @@ if __name__ == '__main__':
     N_max = np.inf
     if len(sys.argv) > 4:
         N_max = int(sys.argv[4])
-  
+ 
     #trajectory to run in parallel
-    def trajectory(n,traces): 
-        env.seed(seed) #otherwise the state of the random device is just copied
-        s = env.reset()
-        
-        #noise realization   
-        np.random.seed(seed)
-        noises = np.random.normal(0,1,H)            
-        print noises[0]
+    def trajectory(n,initials,noises,traces):
+        s = env.reset(initials[n])
 
-        for l in range(H): 
-            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
+        for l in range(H):
+            a = np.clip(gauss_policy(s,theta,sigma,noises[n,l]),-env.max_action, env.max_action)
             traces[n,l,0] = gauss_score(s,a,theta,sigma)
             s,r,_,_ = env.step(a)
-            traces[n,l,1] = gamma**l*r 
-        
+            traces[n,l,1] = gamma**l*r
+    
     if record:
         fp = open(sys.argv[3],'w')    
 
@@ -112,8 +107,11 @@ if __name__ == '__main__':
             print 'iteration:', iteration, 'N:', N, 'theta:', theta  
             
         #Run N trajectories in parallel  
-        traces = np.memmap(traces_path,dtype=float,shape=(N,H,2),mode='w+')  
-        Parallel(n_jobs=n_cores)(delayed(trajectory)(n,traces) for n in xrange(N))                  
+        initials = np.random.uniform(-env.max_pos,env.max_pos,N)
+        noises = np.random.normal(0,1,(N,H))
+        traces = np.memmap(traces_path,dtype=float,shape=(N,H,2),mode='w+')
+        Parallel(n_jobs=n_cores)(delayed(trajectory)(n,initials,noises,traces) for n in xrange(N))  
+       
         scores = traces[:,:,0]
         disc_rewards = traces[:,:,1]
         #Performance estimation
@@ -130,6 +128,7 @@ if __name__ == '__main__':
         
         #Gradient estimation
         grads = grad_estimator(scores,disc_rewards)
+        print grads
         grad_J = np.mean(grads)
         maxGrad = max(grads)
         minGrad = min(grads)            
@@ -151,7 +150,7 @@ if __name__ == '__main__':
 
         #Adaptive batch-size (for next batch)
         N = int(math.log(1/delta)*(maxGrad - minGrad)**2*(13+3*math.sqrt(17))/ \
-                    (4*grad_J**2)) + 1   
+                    (4*grad_J**2)) + 1
 
         if verbose>0:
             print 'time:', time.time() - start, '\n'
