@@ -73,6 +73,8 @@ if __name__ == '__main__':
     N_max = np.inf
     if len(sys.argv) > 4:
         N_max = int(sys.argv[4])
+    maxGrad = -np.inf
+    minGrad = np.inf
  
     #trajectory to run in parallel
     def trajectory(n,initials,noises,traces):
@@ -128,10 +130,11 @@ if __name__ == '__main__':
         
         #Gradient estimation
         grads = grad_estimator(scores,disc_rewards)
-        print grads
         grad_J = np.mean(grads)
-        maxGrad = max(grads)
-        minGrad = min(grads)            
+        maxGrad = max(maxGrad,max(grads))
+        minGrad = min(minGrad,min(grads))
+        if verbose>0:
+            print 'hoeffding:', minGrad,maxGrad
 
         #Stopping condition
         epsilon = math.sqrt((math.log(1/delta)*(maxGrad-minGrad)**2)/(2*N))

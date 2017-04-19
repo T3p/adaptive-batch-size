@@ -26,6 +26,7 @@ def reinforce_grad(scores,disc_rewards):
     return np.mean(sum_of_scores*(q-b))
 
 def gpomdp_grad(scores,disc_rewards):
+    N = scores.shape[0]
     H = scores.shape[1]
     cumulative_scores = np.zeros((N,H))
     #optimal baseline:
