@@ -2,30 +2,32 @@ close all
 clear
 clc
 
-M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_95_max_30000000_unbiased_1.out',' ',1);
+M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_95_hoeffding.out',' ',1);
 iteration = M.data(:,1);
 batchsize = M.data(:,2);
 performance = M.data(:,4);
 realJ = M.data(:,5);
 
+t = 1;
+T = length(batchsize(cumsum(batchsize)<30000000));
+
 figure
-plot(iteration,batchsize)
+plot(iteration(t:T),batchsize(t:T))
 title('Batch-size')
 xlabel('iteration')
 ylabel('N')
 
 figure
-plot(iteration,performance)
+plot(iteration(t:T),performance(t:T))
 title('Performance')
 xlabel('iteration')
 ylabel('J')
 hold on
-plot(iteration,realJ,'r')
+plot(iteration(t:T),realJ(t:T),'r')
 
 figure 
-t = 1;
-T = length(iteration);
 plot(iteration(t:T),realJ(t:T))
+title('Online Performance')
 
-J_avg = sum(realJ.*batchsize)/sum(batchsize)
-sum(batchsize)
+J_avg = sum(realJ(t:T).*batchsize(t:T))/sum(batchsize(t:T))
+sum(batchsize(t:T))
