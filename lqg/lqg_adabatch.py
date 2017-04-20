@@ -38,14 +38,19 @@ def gpomdp_grad(scores,disc_rewards):
     #gradient estimate:
     return np.mean(sum(cumulative_scores[:,i]*(disc_rewards[:,i] - b[i]) for i in range(0,H)))
        
-def reinforce_d(R,M_phi,H,delta,sigma,gamma):
+def cheb_reinforce_d(R,M_phi,H,delta,sigma,gamma):
     return math.sqrt((R**2*M_phi**2*H*(1-gamma**H)**2)/ \
                 (sigma**2*(1-gamma)**2*delta)) 
 
-def gpomdp_d(R,M_phi,H,delta,sigma,gamma):
+def cheb_gpomdp_d(R,M_phi,H,delta,sigma,gamma):
     return math.sqrt((R**2*M_phi**2)/(delta*sigma**2*(1-gamma)**2) * \
                        ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
                             2 * gamma**H  * (1-gamma**H)/(1-gamma)))  
+
+def hoeff_d(delta,upper,lower):
+    assert delta<1
+    return math.sqrt((math.log(1/delta)*(upper-lower)**2) \
+                        /2)
 
 if __name__ == '__main__':
     env = gym.make('LQG1D-v0')
@@ -63,7 +68,8 @@ if __name__ == '__main__':
     theta = 0 #initial value
     delta = float(sys.argv[2])
     grad_estimator = gpomdp_grad
-    d = gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
+    #d = cheb_gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
+    d = hoeff_d(delta,-202,54)
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
@@ -145,7 +151,7 @@ if __name__ == '__main__':
         	theta+=alpha*grad_J
 
         #Adaptive batch-size (for next batch)
-        N = int((8/(13-3*math.sqrt(17)))*d**2/grad_J**2)+1   
+        N = int(((13+3*math.sqrt(17))/2)*d**2/grad_J**2)+1   
 
         if verbose>0:
             print 'time:', time.time() - start, '\n'

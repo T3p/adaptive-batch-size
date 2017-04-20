@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-M = importdata('~/adaptive-batch-size/results/adabatch_gpomdp_d1_1.out',' ',1);
+M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_95_max_30000000_unbiased_1.out',' ',1);
 iteration = M.data(:,1);
 batchsize = M.data(:,2);
 performance = M.data(:,4);
@@ -24,7 +24,7 @@ plot(iteration,realJ,'r')
 
 figure 
 t = 1;
-T = 1000;
+T = length(iteration);
 plot(iteration(t:T),realJ(t:T))
 
 J_avg = sum(realJ.*batchsize)/sum(batchsize)
