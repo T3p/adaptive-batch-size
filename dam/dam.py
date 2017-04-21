@@ -111,7 +111,8 @@ class Dam(gym.Env):
     def reset(self, state=None):
         if state is None:
             if self.penalize:
-                self.state = prng.np_random.uniform(0.0, 160.0)
+                #self.state = prng.np_random.uniform(0.0, 160.0)
+                self.state = np.random.uniform(0.0,160)
             else:
                 s_init = np.array([9.6855361e+01, 5.8046026e+01,
                                    1.1615767e+02, 2.0164311e+01,
@@ -119,10 +120,11 @@ class Dam(gym.Env):
                                    1.3101816e+02, 4.4351321e+01,
                                    1.3185943e+01, 7.3508622e+01,
                                    ])
-                idx = prng.np_random.randint(low=0, high=s_init.size)
+                #idx = prng.np_random.randint(low=0, high=s_init.size)
+                idx = np.random.randint(low=0,high=s_init.size)
                 self.state = np.asscalar(s_init[idx])
         else:
-            assert np.isscalar(state) and state > 0.
+            #assert np.isscalar(state) and state > 0.
             self.state = np.asscalar(state)
 
         return self.get_state()
