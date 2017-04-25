@@ -47,8 +47,12 @@ def cheb_gpomdp_d(R,M_phi,H,delta,sigma,gamma):
                        ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
                             2 * gamma**H  * (1-gamma**H)/(1-gamma)))  
 
-def hoeff_d(delta,upper,lower):
+def hoeff_d(R,M_phi,H,delta,sigma,gamma,a_max,action_volume,theta):
     assert delta<1
+    assert theta<=0
+    upper = (a_max - theta*M_phi)*M_phi*action_volume*R/(sigma**2*(1-gamma))
+    lower = -upper
+    print 'Hoeff upper:', upper
     return math.sqrt((math.log(1/delta)*(upper-lower)**2) \
                         /2)
 
@@ -69,7 +73,6 @@ if __name__ == '__main__':
     delta = float(sys.argv[2])
     grad_estimator = gpomdp_grad
     #d = cheb_gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
-    d = hoeff_d(delta,-202,54)
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
@@ -134,7 +137,7 @@ if __name__ == '__main__':
         
         #Gradient estimation
         grad_J = grad_estimator(scores,disc_rewards)            
-
+	d = hoeff_d(R,M_phi,H,delta,sigma,gamma,env.max_action,action_volume,theta)
         #Stopping condition
         epsilon = d/math.sqrt(N)
         if verbose > 0:
@@ -148,7 +151,7 @@ if __name__ == '__main__':
 
         #update
 	if iteration>1:
-        	theta+=alpha*grad_J
+		theta+=alpha*grad_J
 
         #Adaptive batch-size (for next batch)
         N = int(((13+3*math.sqrt(17))/2)*d**2/grad_J**2)+1   
