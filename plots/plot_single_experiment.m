@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_95_hoeffding.out',' ',1);
+M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_95_hoeffding_const.out',' ',1);
 iteration = M.data(:,1);
 batchsize = M.data(:,2);
 performance = M.data(:,4);
