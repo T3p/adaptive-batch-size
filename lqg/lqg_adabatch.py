@@ -85,11 +85,11 @@ if __name__ == '__main__':
         N_max = int(sys.argv[4])
   
     #trajectory to run in parallel
-    def trajectory(n,initials,noises,traces):
-        s = env.reset(initials[n])
+    def trajectory(n,initial,noises,traces):
+        s = env.reset(initial)
 
         for l in range(H): 
-            a = np.clip(gauss_policy(s,theta,sigma,noises[n,l]),-env.max_action, env.max_action)
+            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
             traces[n,l,0] = gauss_score(s,a,theta,sigma)
             s,r,_,_ = env.step(a)
             traces[n,l,1] = gamma**l*r 
@@ -120,7 +120,7 @@ if __name__ == '__main__':
         initials = np.random.uniform(-env.max_pos,env.max_pos,N)
         noises = np.random.normal(0,1,(N,H))
         traces = np.memmap(traces_path,dtype=float,shape=(N,H,2),mode='w+')  
-        Parallel(n_jobs=n_cores)(delayed(trajectory)(n,initials,noises,traces) for n in xrange(N))                  
+        Parallel(n_jobs=n_cores)(delayed(trajectory)(n,initials[n],noises[n],traces) for n in xrange(N))                  
         scores = traces[:,:,0]
         disc_rewards = traces[:,:,1]
         #Performance estimation
@@ -137,7 +137,7 @@ if __name__ == '__main__':
         
         #Gradient estimation
         grad_J = grad_estimator(scores,disc_rewards)            
-	d = hoeff_d(R,M_phi,H,delta,sigma,gamma,env.max_action,action_volume,theta)
+        d = hoeff_d(R,M_phi,H,delta,sigma,gamma,env.max_action,action_volume,theta)
         #Stopping condition
         epsilon = d/math.sqrt(N)
         if verbose > 0:
@@ -150,8 +150,8 @@ if __name__ == '__main__':
             fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,J,J_est,down))         
 
         #update
-	if iteration>1:
-		theta+=alpha*grad_J
+        if iteration>1:
+            theta+=alpha*grad_J
 
         #Adaptive batch-size (for next batch)
         N = int(((13+3*math.sqrt(17))/2)*d**2/grad_J**2)+1   
