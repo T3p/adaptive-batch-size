@@ -72,7 +72,7 @@ if __name__ == '__main__':
     theta = 0 #initial value
     delta = float(sys.argv[2])
     grad_estimator = gpomdp_grad
-    #d = cheb_gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
+    d = cheb_gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
@@ -137,7 +137,7 @@ if __name__ == '__main__':
         
         #Gradient estimation
         grad_J = grad_estimator(scores,disc_rewards)            
-        d = hoeff_d(R,M_phi,H,delta,sigma,gamma,env.max_action,action_volume,theta)
+        #d = hoeff_d(R,M_phi,H,delta,sigma,gamma,env.max_action,action_volume,theta)
         #Stopping condition
         epsilon = d/math.sqrt(N)
         if verbose > 0:
