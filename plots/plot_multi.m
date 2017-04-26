@@ -25,17 +25,17 @@ color = 'y';
 plot_scaledData
 J_avg = sum(realJ.*batchsize)/sum(batchsize)
 
-M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_95_hoeffding_const.out',' ',1);
+M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_95_hoeffding_theo.out',' ',1);
 color = 'b--';
 plot_scaledData
 
 J_avg = sum(realJ.*batchsize)/sum(batchsize)
-M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_9_hoeffding_const.out',' ',1);
+M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_9_hoeffding_theo.out',' ',1);
 color = 'r--';
 plot_scaledData
 J_avg = sum(realJ.*batchsize)/sum(batchsize)
 
-M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_85_hoeffding_const.out',' ',1);
+M = importdata('~/adaptive-batch-size/lqg/results/adabatch_gpomdp_d0_85_hoeffding_theo.out',' ',1);
 color = 'g--';
 plot_scaledData
 J_avg = sum(realJ.*batchsize)/sum(batchsize)
