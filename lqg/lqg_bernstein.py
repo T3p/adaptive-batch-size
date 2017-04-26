@@ -105,7 +105,7 @@ if __name__ == '__main__':
     if verbose>0:
         print 'theta*:', theta_star, '\n' 
     if record:
-        fp.write("{} {} {} {}\n\n".format(grad_estimator.__name__,delta,alpha,theta_star))
+        fp.write("{} {} {}\n\n".format(grad_estimator.__name__,delta,theta_star))
     iteration = 0
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
@@ -178,7 +178,7 @@ if __name__ == '__main__':
             theta+=alpha*grad_J
         
         if record:
-            fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,J,J_est,down))         
+            fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
 
 
         #Adaptive batch-size (for next batch)
