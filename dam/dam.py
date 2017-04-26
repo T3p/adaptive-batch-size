@@ -58,6 +58,8 @@ class Dam(gym.Env):
         self.ETA = 1.0  # Turbine efficiency
         self.G = 9.81  # Gravity
 
+        self.max_release = 50
+
         # gym attributes
         self.viewer = None
         self.action_space = spaces.Box(low=0.0,
@@ -71,12 +73,12 @@ class Dam(gym.Env):
         self.seed()
         self.reset()
 
-    def step(self, action, render=False):
+    def step(self, action, render=False,noise=None):
         reward = np.zeros(4)
 
         # Bound the action
         actionLB = max(self.state - self.S_MIN_REL, 0.0)
-        actionUB = self.state
+        actionUB = min(self.max_release,self.state)
 
         # Penalty proportional to the violation
         bounded_action = min(max(action, actionLB), actionUB)
@@ -84,7 +86,11 @@ class Dam(gym.Env):
 
         # Transition dynamic
         action = bounded_action
-        dam_inflow = self.DAM_INFLOW_MEAN + np.random.randn() * self.DAM_INFLOW_STD
+        dam_inflow = self.DAM_INFLOW_MEAN
+        if noise!=None:
+            dam_inflow+=noise*self.DAM_INFLOW_STD
+        else:
+            dam_inflow+=np.random.randn() * self.DAM_INFLOW_STD
         nextstate = max(self.state + dam_inflow - action, 0)  # There is a very small chance that dam_inflow < 0
 
         # Cost due to the excess level w.r.t. a flooding threshold (upstream)

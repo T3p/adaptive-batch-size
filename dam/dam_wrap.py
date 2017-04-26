@@ -21,7 +21,7 @@ register(
 #Wrapper for Dam environment
 class DamWrap(Dam):
     def __init__(self,dreward=2,penalize=False):
-        self.centers = spaceout(4,-20,190)
+        self.centers = spaceout(2,-20,190)
         self.dim = len(self.centers)+1
         self.width = 60    
         
@@ -37,8 +37,8 @@ class DamWrap(Dam):
             features.append(rbf(c,self.width,s))
         return features
 
-    def step(self,action,render=False):
-        s,r,done,info = super(DamWrap,self).step(action,render)
+    def step(self,action,noise,render=False):
+        s,r,done,info = super(DamWrap,self).step(action,render,noise)
         
         #Model state: RBFs
         new_s = self.features(s)       
