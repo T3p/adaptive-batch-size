@@ -112,6 +112,7 @@ if __name__ == '__main__':
     n_cores = multiprocessing.cpu_count() 
     N_tot = N
     N_min = 2
+    alpha = 0
     bad_updates = 0
     while True: 
         iteration+=1 
