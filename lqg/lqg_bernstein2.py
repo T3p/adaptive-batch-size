@@ -69,20 +69,30 @@ if __name__ == '__main__':
     sigma = 1 
     H = env.horizon
     theta = 0 #initial value
-    delta = float(sys.argv[2])
+
+    #Args: N_min, N_max, delta, outfile, MaxN
+    N_min = int(sys.argv[1])
+    assert N_min > 1
+    N_max = int(sys.argv[2])
+    assert N_max < 1000000
+    delta = float(sys.argv[3])
     assert delta<1
+    record = len(sys.argv) > 4
+    if record:
+        fp = open(sys.argv[4],'w')    
+    N_maxtot = np.inf
+    if len(sys.argv) > 5:
+        N_maxtot = int(sys.argv[5])
+ 
     grad_estimator = gpomdp_grads
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
-    verbose = 1
-    record = len(sys.argv) > 3
+    verbose = 1    
     seed = None
     np.random.seed(seed)  
-    N_max = np.inf
-    if len(sys.argv) > 4:
-        N_max = int(sys.argv[4])
-  
+
+ 
     #trajectory to run in parallel
     def trajectory(n,initial,noises,traces):
         s = env.reset(initial)
@@ -93,8 +103,6 @@ if __name__ == '__main__':
             s,r,_,_ = env.step(a)
             traces[n,l,1] = gamma**l*r 
         
-    if record:
-        fp = open(sys.argv[3],'w')    
 
     #Learning
     J_est = J = -np.inf 
@@ -108,7 +116,6 @@ if __name__ == '__main__':
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
     n_cores = multiprocessing.cpu_count() 
-    N_min = int(sys.argv[1])
     assert N_min > 1
     N = N_min
     N_tot = N
@@ -168,16 +175,16 @@ if __name__ == '__main__':
         if epsilon > abs(grad_J):
             epsilon = abs(grad_J)
         print 'epsilon:', epsilon, 'grad:', grad_J, 'f:', f
-        if epsilon < f:
-            print 'eps < f!'
-            break   
-        N = max(N_min,int((d/(epsilon-f))**2) + 1)  
+        if epsilon <= f:
+            N = N_max
+        else:   
+            N = max(N_min,int((d/(epsilon-f))**2) + 1)  
         
         if verbose>0:
             print 'time:', time.time() - start, '\n'
 
         N_tot+=N
-        if N_tot>N_max:
+        if N_tot>N_maxtot:
             print "Max N reached"
             break
           
