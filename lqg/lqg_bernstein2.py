@@ -69,19 +69,19 @@ if __name__ == '__main__':
     sigma = 1 
     H = env.horizon
     theta = 0 #initial value
-    delta = float(sys.argv[1])
+    delta = float(sys.argv[2])
     assert delta<1
     grad_estimator = gpomdp_grads
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
     verbose = 1
-    record = len(sys.argv) > 2
+    record = len(sys.argv) > 3
     seed = None
     np.random.seed(seed)  
     N_max = np.inf
     if len(sys.argv) > 4:
-        N_max = int(sys.argv[3])
+        N_max = int(sys.argv[4])
   
     #trajectory to run in parallel
     def trajectory(n,initial,noises,traces):
@@ -94,7 +94,7 @@ if __name__ == '__main__':
             traces[n,l,1] = gamma**l*r 
         
     if record:
-        fp = open(sys.argv[2],'w')    
+        fp = open(sys.argv[3],'w')    
 
     #Learning
     J_est = J = -np.inf 
@@ -108,7 +108,8 @@ if __name__ == '__main__':
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
     n_cores = multiprocessing.cpu_count() 
-    N_min = 2
+    N_min = int(sys.argv[1])
+    assert N_min > 1
     N = N_min
     N_tot = N
     bad_updates = 0
@@ -147,45 +148,34 @@ if __name__ == '__main__':
         grad_samples = grad_estimator(scores,disc_rewards)
         grad_J = np.mean(grad_samples)
         sample_var = np.var(grad_samples,ddof=1)            
-        d = 7.0/3*math.log(2/delta)
-        f = math.sqrt(2*sample_var*math.log(2/delta))/math.sqrt(N_min)
+        d = math.sqrt(2*sample_var*math.log(2/delta))
+        f = 7.0/3*math.log(2/delta)/N_min
             
         #Adaptive step-size
-        actual_eps = d/(N-1) + f
+        actual_eps = d/math.sqrt(N) + f
         alpha = (abs(grad_J)-actual_eps)**2/(2*c*(abs(grad_J)+actual_eps)**2) 
         if verbose>0:
                 print 'alpha:', alpha
-
-        #Stopping condition
-        coeff = [2]
-        coeff.append(6*abs(grad_J)+3*d-4*f)
-        coeff.append(2*f**2-6*abs(grad_J)*d-12*abs(grad_J)*f-2*d*f)
-        coeff.append(-abs(grad_J)*d+6*abs(grad_J)*f**2)
-        roots = np.roots(coeff)
-        valid_eps = False
-        for x in roots:
-            if isinstance(x,float) and x>0:
-                epsilon = x
-                valid_eps = True
-                break
-        if verbose > 0:
-            print 'epsilon:', epsilon, 'grad:', grad_J, 'f:', f
-         
-        if not valid_eps or epsilon > abs(grad_J):
-            epsilon = abs(grad_J)
-
+        #Record
         if record:
             fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
 
         #Update
         theta+=alpha*grad_J
-
-        #Adaptive batch-size (for next batch)
-        N = max(N_min,int(d/(epsilon-f) + 1) + 1)  
+        
+        #Adaptive batch-size (used for next batch)
+        epsilon = 1.0/3*(f - 3*abs(grad_J) + math.sqrt(12*grad_J**2 + 12*abs(grad_J)*f + f**2)) 
+        if epsilon > abs(grad_J):
+            epsilon = abs(grad_J)
+        print 'epsilon:', epsilon, 'grad:', grad_J, 'f:', f
+        if epsilon < f:
+            print 'eps < f!'
+            break   
+        N = max(N_min,int((d/(epsilon-f))**2) + 1)  
         
         if verbose>0:
             print 'time:', time.time() - start, '\n'
-        
+
         N_tot+=N
         if N_tot>N_max:
             print "Max N reached"
