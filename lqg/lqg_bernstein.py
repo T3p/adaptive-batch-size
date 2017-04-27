@@ -171,12 +171,6 @@ if __name__ == '__main__':
         if not valid_eps or epsilon > abs(grad_J):
             epsilon = abs(grad_J)
 
-        #update
-        if iteration>1 and  valid_eps: #and epsilon>f and epsilon< abs(grad_J):
-            alpha = (abs(grad_J)-epsilon)**2/(2*c*(abs(grad_J)+epsilon)**2) 
-            if verbose>0:
-                print 'alpha:', alpha
-            theta+=alpha*grad_J
         
         if record:
             fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
@@ -184,6 +178,13 @@ if __name__ == '__main__':
 
         #Adaptive batch-size (for next batch)
         N = max(N_min,int(d/(epsilon-f) + 1) + 1)  
+        epsilon = d/(N-1) + f
+        #update
+        if iteration>1 and  valid_eps: #and epsilon>f and epsilon< abs(grad_J):
+            alpha = (abs(grad_J)-epsilon)**2/(2*c*(abs(grad_J)+epsilon)**2) 
+            if verbose>0:
+                print 'alpha:', alpha
+            theta+=alpha*grad_J
 
         if verbose>0:
             print 'time:', time.time() - start, '\n'
