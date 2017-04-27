@@ -67,23 +67,21 @@ if __name__ == '__main__':
 
     gamma = env.gamma 
     sigma = 1 
-    N = int(sys.argv[1]) #INITIAL batch size
     H = env.horizon
     theta = 0 #initial value
-    delta = float(sys.argv[2])
+    delta = float(sys.argv[1])
     assert delta<1
     grad_estimator = gpomdp_grads
-    #d = cheb_gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
     verbose = 1
-    record = len(sys.argv) > 3
+    record = len(sys.argv) > 2
     seed = None
     np.random.seed(seed)  
     N_max = np.inf
     if len(sys.argv) > 4:
-        N_max = int(sys.argv[4])
+        N_max = int(sys.argv[3])
   
     #trajectory to run in parallel
     def trajectory(n,initial,noises,traces):
@@ -96,7 +94,7 @@ if __name__ == '__main__':
             traces[n,l,1] = gamma**l*r 
         
     if record:
-        fp = open(sys.argv[3],'w')    
+        fp = open(sys.argv[2],'w')    
 
     #Learning
     J_est = J = -np.inf 
@@ -110,9 +108,9 @@ if __name__ == '__main__':
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
     n_cores = multiprocessing.cpu_count() 
-    N_tot = N
     N_min = 2
-    alpha = 0
+    N = N_min
+    N_tot = N
     bad_updates = 0
     while True: 
         iteration+=1 
@@ -151,8 +149,13 @@ if __name__ == '__main__':
         sample_var = np.var(grad_samples,ddof=1)            
         d = 7.0/3*math.log(2/delta)
         f = math.sqrt(2*sample_var*math.log(2/delta))/math.sqrt(N_min)
-        #d = hoeff_d(R,M_phi,H,delta,sigma,gamma,env.max_action,action_volume,theta)
-        
+            
+        #Adaptive step-size
+        actual_eps = d/(N-1) + f
+        alpha = (abs(grad_J)-actual_eps)**2/(2*c*(abs(grad_J)+actual_eps)**2) 
+        if verbose>0:
+                print 'alpha:', alpha
+
         #Stopping condition
         coeff = [2]
         coeff.append(6*abs(grad_J)+3*d-4*f)
@@ -171,21 +174,15 @@ if __name__ == '__main__':
         if not valid_eps or epsilon > abs(grad_J):
             epsilon = abs(grad_J)
 
-        
         if record:
             fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
 
+        #Update
+        theta+=alpha*grad_J
 
         #Adaptive batch-size (for next batch)
         N = max(N_min,int(d/(epsilon-f) + 1) + 1)  
-        epsilon = d/(N-1) + f
-        #update
-        if iteration>1 and  valid_eps: #and epsilon>f and epsilon< abs(grad_J):
-            alpha = (abs(grad_J)-epsilon)**2/(2*c*(abs(grad_J)+epsilon)**2) 
-            if verbose>0:
-                print 'alpha:', alpha
-            theta+=alpha*grad_J
-
+        
         if verbose>0:
             print 'time:', time.time() - start, '\n'
         
