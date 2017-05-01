@@ -17,15 +17,15 @@ def gauss_policy(s,theta,sigma,noise):
 def gauss_score(s,a,theta,sigma):
     return (a-s*theta)*s/(sigma**2)
 
-def reinforce_grads(scores,disc_rewards):
+def reinforce_grad(scores,disc_rewards):
     q = np.sum(disc_rewards,1)
     sum_of_scores = np.sum(scores,1)
     #optimal baseline:
     b = np.mean(sum_of_scores**2*q)/np.mean(sum_of_scores**2)
     #gradient estimate:
-    return sum_of_scores*(q-b)
+    return np.mean(sum_of_scores*(q-b))
 
-def gpomdp_grads(scores,disc_rewards):
+def gpomdp_grad(scores,disc_rewards):
     N = scores.shape[0]
     H = scores.shape[1]
     cumulative_scores = np.zeros((N,H))
@@ -36,7 +36,7 @@ def gpomdp_grads(scores,disc_rewards):
         b[k] = np.mean(cumulative_scores[:,k]**2*disc_rewards[:,k])/ \
                     np.mean(cumulative_scores[:,k]**2)
     #gradient estimate:
-    return sum(cumulative_scores[:,i]*(disc_rewards[:,i] - b[i]) for i in range(0,H))
+    return np.mean(sum(cumulative_scores[:,i]*(disc_rewards[:,i] - b[i]) for i in range(0,H)))
        
 def cheb_reinforce_d(R,M_phi,H,delta,sigma,gamma):
     return math.sqrt((R**2*M_phi**2*H*(1-gamma**H)**2)/ \
@@ -67,32 +67,23 @@ if __name__ == '__main__':
 
     gamma = env.gamma 
     sigma = 1 
+    N = int(sys.argv[1]) #INITIAL batch size
     H = env.horizon
     theta = 0 #initial value
-
-    #Args: N_min, N_max, delta, outfile, MaxN
-    N_min = int(sys.argv[1])
-    assert N_min > 1
-    N_max = int(sys.argv[2])
-    assert N_max < 1000000
-    delta = float(sys.argv[3])
-    assert delta<1
-    record = len(sys.argv) > 4
-    if record:
-        fp = open(sys.argv[4],'w')    
-    N_maxtot = np.inf
-    if len(sys.argv) > 5:
-        N_maxtot = int(sys.argv[5])
- 
-    grad_estimator = gpomdp_grads
+    delta = float(sys.argv[2])
+    grad_estimator = gpomdp_grad
+    d = cheb_gpomdp_d(R,M_phi,H,delta,sigma,gamma) #constant for variance bound
     c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
             (2*(1-gamma)**3*sigma**3*math.sqrt(2*math.pi))  
     
-    verbose = 1    
+    verbose = 1
+    record = len(sys.argv) > 3
     seed = None
     np.random.seed(seed)  
-
- 
+    N_max = np.inf
+    if len(sys.argv) > 4:
+        N_max = int(sys.argv[4])
+  
     #trajectory to run in parallel
     def trajectory(n,initial,noises,traces):
         s = env.reset(initial)
@@ -103,23 +94,22 @@ if __name__ == '__main__':
             s,r,_,_ = env.step(a)
             traces[n,l,1] = gamma**l*r 
         
+    if record:
+        fp = open(sys.argv[3],'w')    
 
     #Learning
     J_est = J = -np.inf 
     #Step-size
-    #alpha = (13-3*math.sqrt(17))/(4*c)
+    alpha = (13-3*math.sqrt(17))/(4*c)
     if verbose>0:
-        print 'theta*:', theta_star, '\n' 
+        print 'alpha:', alpha, 'theta*:', theta_star, '\n' 
     if record:
-        fp.write("{} {} {}\n\n".format(grad_estimator.__name__,delta,theta_star))
+        fp.write("{} {} {} {}\n\n".format(grad_estimator.__name__,delta,alpha,theta_star))
     iteration = 0
     path = tempfile.mkdtemp()
     traces_path = os.path.join(path,'traces.mmap')
     n_cores = multiprocessing.cpu_count() 
-    assert N_min > 1
-    N = N_min
     N_tot = N
-    bad_updates = 0
     while True: 
         iteration+=1 
         if verbose > 0:
@@ -140,51 +130,37 @@ if __name__ == '__main__':
         J = env.computeJ(theta,sigma,N)
         deltaJ_est = J_est - J_est0
         deltaJ = J - J0
-        if iteration>1:
-            if deltaJ<0:
-                bad_updates+=1
-            eff = 1-float(bad_updates)/(iteration-1)
-            print 'EFF:', eff, '%'
-        
         if verbose>0:   
             print 'J:', J, 'J~:', J_est
             print 'deltaJ:', deltaJ, 'deltaJ~:', deltaJ_est
         del traces
         
         #Gradient estimation
-        grad_samples = grad_estimator(scores,disc_rewards)
-        grad_J = np.mean(grad_samples)
-        sample_var = np.var(grad_samples,ddof=1)            
-        d = math.sqrt(2*sample_var*math.log(2/delta))
-        f = 7.0/3*math.log(2/delta)/N_min
-            
-        #Adaptive step-size
-        actual_eps = d/math.sqrt(N) + f
-        alpha = (abs(grad_J)-actual_eps)**2/(2*c*(abs(grad_J)+actual_eps)**2) 
-        if verbose>0:
-                print 'alpha:', alpha
-        #Record
+        grad_J = grad_estimator(scores,disc_rewards)            
+        #d = hoeff_d(R,M_phi,H,delta,sigma,gamma,env.max_action,action_volume,theta)
+        #Stopping condition
+        epsilon = d/math.sqrt(N)
+        if verbose > 0:
+            print 'epsilon:', epsilon, 'grad:', grad_J
+        down = abs(grad_J) - epsilon
+        if iteration>1 and down<=0:
+            break
+         
         if record:
-            fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
+            fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,J,J_est,down))         
 
-        #Update
-        theta+=alpha*grad_J
-        
-        #Adaptive batch-size (used for next batch)
-        epsilon = 1.0/3*(f - 3*abs(grad_J) + math.sqrt(12*grad_J**2 + 12*abs(grad_J)*f + f**2)) 
-        if epsilon > abs(grad_J):
-            epsilon = abs(grad_J)
-        print 'epsilon:', epsilon, 'grad:', grad_J, 'f:', f
-        if epsilon <= f:
-            N = N_max
-        else:   
-            N = max(N_min,int((d/(epsilon-f))**2) + 1)  
-        
+        #update
+        if iteration>1:
+            theta+=alpha*grad_J
+
+        #Adaptive batch-size (for next batch)
+        N = int(((13+3*math.sqrt(17))/2)*d**2/grad_J**2)+1   
+
         if verbose>0:
             print 'time:', time.time() - start, '\n'
-
+        
         N_tot+=N
-        if N_tot>N_maxtot:
+        if N_tot>N_max:
             print "Max N reached"
             break
           
