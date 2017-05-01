@@ -3,8 +3,8 @@ import os
 
 #for delta in [float(x)/100 for x in range(100,0,-5)]:
 max_N = 20000000
-N_min = 10
-N_max = 10000
+N_min = 100
+N_max = 100000
 for i in range(5):
     for delta in [0.95,0.75,0.5,0.25]:
         for estimator in range(2):

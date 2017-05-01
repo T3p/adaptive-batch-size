@@ -223,7 +223,7 @@ if __name__ == '__main__':
         if epsilon <= f:
             N = N_max
         else:   
-            N = max(N_min,int((d/(epsilon-f))**2) + 1)  
+            N = min(N_max,max(N_min,int((d/(epsilon-f))**2) + 1))  
         
         #Meta
         if verbose>0:
