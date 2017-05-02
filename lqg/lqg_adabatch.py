@@ -204,14 +204,16 @@ if __name__ == '__main__':
         grad_samples = grad_estimator(scores,disc_rewards)
         grad_J = np.mean(grad_samples)
         sample_var = np.var(grad_samples,ddof=1)
-        rng_emp = max(rng_emp,max(grad_samples) - min(grad_samples))
+        #rng_emp = max(rng_emp,max(grad_samples) - min(grad_samples))
         rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume,theta)
-        varbound = (R**2*M_phi**2)/(delta*sigma**2*(1-gamma)**2) * \
-                       ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
-                            2 * gamma**H  * (1-gamma**H)/(1-gamma)) 
         d,f,f0 = stat_bound(R,M_phi,H,delta,sigma,gamma,rng,sample_var,grad_J)
            
-
+        #Adaptive step-size
+        actual_eps = d/math.sqrt(N) + f0/N
+        alpha = (abs(grad_J)-actual_eps)**2/(2*c*(abs(grad_J)+actual_eps)**2) 
+        if verbose>0:
+                print 'alpha:', alpha
+        
         #Record
         if record:
             fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
@@ -227,12 +229,6 @@ if __name__ == '__main__':
         N_star = ((d + math.sqrt(d**2 + 4*epsilon*f0))/(2*epsilon))**2
         N = min(N_max,max(N_min,int(N_star) + 1))  
         
-        #Adaptive step-size
-        actual_eps = d/math.sqrt(N) + f0/N
-        alpha = (abs(grad_J)-actual_eps)**2/(2*c*(abs(grad_J)+actual_eps)**2) 
-        if verbose>0:
-                print 'alpha:', alpha
-
         #Meta
         if verbose>0:
             print 'time:', time.time() - start, '\n'
