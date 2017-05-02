@@ -45,13 +45,13 @@ def eps_opt(d,f,grad_J):
 def cheb_reinforce(R,M_phi,H,delta,sigma,gamma,grad_range=None,sample_var=None,grad_J=None):
     d =  math.sqrt((R**2*M_phi**2*H*(1-gamma**H)**2)/ \
                 (sigma**2*(1-gamma)**2*delta)) 
-    return d,0
+    return d,0,0
 
 def cheb_gpomdp(R,M_phi,H,delta,sigma,gamma,grad_range=None,sample_var=None,grad_J=None):
     d = math.sqrt((R**2*M_phi**2)/(delta*sigma**2*(1-gamma)**2) * \
                        ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
                             2 * gamma**H  * (1-gamma**H)/(1-gamma)))
-    return d,0
+    return d,0,0
 
 #N.B. Range valid only in case of non-negative or non-positive reward
 def grad_range(R,M_phi,sigma,gamma,a_max,action_volume,theta):
@@ -61,31 +61,35 @@ def grad_range(R,M_phi,sigma,gamma,a_max,action_volume,theta):
 def hoeffding(R,M_phi,H,delta,sigma,gamma,grad_range,sample_var=None,grad_J=None):
     assert delta<1
     d = grad_range*math.sqrt(math.log(2/delta)/2)
-    return d,0
+    return d,0,0
 
 def bernstein(R,M_phi,H,delta,sigma,gamma,grad_range,sample_var,grad_J=None):
     assert delta < 1
     d = math.sqrt(2*sample_var*math.log(3/delta))
     f = 3*math.log(3/delta)*grad_range/N_min
-    return d,f
+    return d,f,f*N_min
+
+def bernstein2(R,M_phi,H,delta,sigma,gamma,grad_range,sample_var,grad_J=None):
+    assert delta < 1
+    d = math.sqrt(2*sample_var*math.log(3/delta))
+    f0 = 3*math.log(3/delta)*grad_range
+    return d+f0,0,0
 
 def iter_bernstein(R,M_phi,H,delta,sigma,gamma,grad_range,sample_var,grad_J):
     d = math.sqrt(2*sample_var*math.log(3/delta))
+    f0 = 3*math.log(3/delta)*grad_range
     N_inf = N_min
     for n in xrange(N_min,N_max+1):
-        f = 3*math.log(3/delta)*grad_range/n
-        eps = min(eps_opt(d,f,grad_J),abs(grad_J))
-        if eps<=f:
-            N_opt = N_max
-        else:
-            N_opt = max(N_min,int((d/(eps-f))**2)+1) 
+        f = f0/n
+        eps = eps_opt(d,f,grad_J)
+        N_opt = int(((d + math.sqrt(d**2 + 4*eps*f0))/(2*eps))**2) + 1
         if N_opt >= n:
             N_inf = n
         else:
             break
     print 'Nmin:', N_inf
-    f = 3*math.log(3/delta)*grad_range/N_inf
-    return d,f
+    f = f0/N_inf
+    return d,f,f0
 
 if __name__ == '__main__':
     env = gym.make('LQG1D-v0')
@@ -103,7 +107,7 @@ if __name__ == '__main__':
     theta = 0 #initial value
 
     estimators = [reinforce,gpomdp]
-    bounds = [cheb_reinforce,cheb_gpomdp,hoeffding,iter_bernstein,bernstein]
+    bounds = [cheb_reinforce,cheb_gpomdp,hoeffding,iter_bernstein,bernstein2]
 
     #Args: N_min, N_max, delta, estimator,bound ,outfile, MaxN
     N_min = int(sys.argv[1])
@@ -162,7 +166,9 @@ if __name__ == '__main__':
     assert N_min > 1
     N = N_min
     N_tot = N
+    rng_emp = 0
     bad_updates = 0
+    alpha = 0
     while True: 
         iteration+=1 
         if verbose > 0:
@@ -198,15 +204,13 @@ if __name__ == '__main__':
         grad_samples = grad_estimator(scores,disc_rewards)
         grad_J = np.mean(grad_samples)
         sample_var = np.var(grad_samples,ddof=1)
+        rng_emp = max(rng_emp,max(grad_samples) - min(grad_samples))
         rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume,theta)
-        assert rng > max(grad_samples) - min(grad_samples)
-        d,f = stat_bound(R,M_phi,H,delta,sigma,gamma,rng,sample_var,grad_J)
+        varbound = (R**2*M_phi**2)/(delta*sigma**2*(1-gamma)**2) * \
+                       ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
+                            2 * gamma**H  * (1-gamma**H)/(1-gamma)) 
+        d,f,f0 = stat_bound(R,M_phi,H,delta,sigma,gamma,rng,sample_var,grad_J)
            
-        #Adaptive step-size
-        actual_eps = d/math.sqrt(N) + f
-        alpha = (abs(grad_J)-actual_eps)**2/(2*c*(abs(grad_J)+actual_eps)**2) 
-        if verbose>0:
-                print 'alpha:', alpha
 
         #Record
         if record:
@@ -220,11 +224,15 @@ if __name__ == '__main__':
         if epsilon > abs(grad_J):
             epsilon = abs(grad_J)
         print 'epsilon:', epsilon, 'grad:', grad_J, 'f:', f
-        if epsilon <= f:
-            N = N_max
-        else:   
-            N = min(N_max,max(N_min,int((d/(epsilon-f))**2) + 1))  
+        N_star = ((d + math.sqrt(d**2 + 4*epsilon*f0))/(2*epsilon))**2
+        N = min(N_max,max(N_min,int(N_star) + 1))  
         
+        #Adaptive step-size
+        actual_eps = d/math.sqrt(N) + f0/N
+        alpha = (abs(grad_J)-actual_eps)**2/(2*c*(abs(grad_J)+actual_eps)**2) 
+        if verbose>0:
+                print 'alpha:', alpha
+
         #Meta
         if verbose>0:
             print 'time:', time.time() - start, '\n'
