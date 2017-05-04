@@ -69,12 +69,6 @@ def bernstein(R,M_phi,H,delta,sigma,gamma,grad_range,sample_var,grad_J=None):
     f = 3*math.log(3/delta)*grad_range/N_min
     return d,f,f*N_min
 
-def bernstein2(R,M_phi,H,delta,sigma,gamma,grad_range,sample_var,grad_J=None):
-    assert delta < 1
-    d = math.sqrt(2*sample_var*math.log(3/delta))
-    f0 = 3*math.log(3/delta)*grad_range
-    return d+f0,0,0
-
 def iter_bernstein(R,M_phi,H,delta,sigma,gamma,grad_range,sample_var,grad_J):
     d = math.sqrt(2*sample_var*math.log(3/delta))
     f0 = 3*math.log(3/delta)*grad_range
@@ -82,7 +76,10 @@ def iter_bernstein(R,M_phi,H,delta,sigma,gamma,grad_range,sample_var,grad_J):
     for n in xrange(N_min,N_max+1):
         f = f0/n
         eps = eps_opt(d,f,grad_J)
-        N_opt = int(((d + math.sqrt(d**2 + 4*eps*f0))/(2*eps))**2) + 1
+        if f>=eps:
+            N_opt = N_max
+        else:
+            N_opt = int((d/(eps-f))**2) + 1
         if N_opt >= n:
             N_inf = n
         else:
@@ -105,9 +102,11 @@ if __name__ == '__main__':
     sigma = 1 
     H = env.horizon
     theta = 0 #initial value
+ 
+    J_star = env.computeJ(theta_star,sigma,1000)
 
     estimators = [reinforce,gpomdp]
-    bounds = [cheb_reinforce,cheb_gpomdp,hoeffding,iter_bernstein,bernstein2]
+    bounds = [cheb_reinforce,cheb_gpomdp,hoeffding,iter_bernstein]
 
     #Args: N_min, N_max, delta, estimator,bound ,outfile, MaxN
     N_min = int(sys.argv[1])
@@ -156,7 +155,7 @@ if __name__ == '__main__':
     #Learning
     J_est = J = -np.inf
     if verbose>0:
-        print 'theta*:', theta_star, '\n' 
+        print 'theta*:', theta_star, 'J*:', J_star, '\n' 
     if record:
         fp.write("{} {} {} {} {} {}\n\n".format(N_min, N_max, delta, grad_estimator.__name__,stat_bound.__name__,N_maxtot))
     iteration = 0
@@ -226,7 +225,10 @@ if __name__ == '__main__':
         if epsilon > abs(grad_J):
             epsilon = abs(grad_J)
         print 'epsilon:', epsilon, 'grad:', grad_J, 'f:', f
-        N_star = ((d + math.sqrt(d**2 + 4*epsilon*f0))/(2*epsilon))**2
+        if f>=epsilon:
+            N_star = N_max
+        else:
+            N_star = (d/(epsilon-f))**2
         N = min(N_max,max(N_min,int(N_star) + 1))  
         
         #Meta
