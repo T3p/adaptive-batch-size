@@ -106,17 +106,18 @@ class QuandlEnvSrc(object):
 
   MinPercentileDays = 100 
   QuandlAuthToken = ""  # not necessary, but can be used if desired
-  Name = "SPY"
+  Name = 'GOOG/NYSE_SPY'
 
-  def __init__(self, days=10, name=Name, auth=QuandlAuthToken, scale=True ):
+  def __init__(self, days=20, name=Name, auth=QuandlAuthToken, scale=True ):
     self.name = name
     self.auth = auth
     self.days = days+1
 
     #Get data from Google Finance
-    log.info('getting data for %s from Google Finance...', self.name)
-    df = google_data(self.name,60,15)
-    log.info('got data for %s from Google Finance...', self.name)
+    print 'getting data'
+    df = google_data('SPY',60,15)
+    #df = quandl.get(self.name) if self.auth=='' else quandl.get(self.name, authtoken=self.auth)
+    print 'got data'
     ####
     
     df = df[ ~np.isnan(df.Volume)][['Close','Volume']]
@@ -137,7 +138,6 @@ class QuandlEnvSrc(object):
     self.min_values = df.min(axis=0)
     self.max_values = df.max(axis=0)
     self.data = df
-    print self.data
     self.step = 0
     
   def reset(self):
@@ -152,7 +152,6 @@ class QuandlEnvSrc(object):
     done = self.step >= self.days
     return obs,done
 
-q = QuandlEnvSrc()
 
 class TradingSim(object) :
   """ Implements core trading simulator for single-instrument univ """
@@ -195,7 +194,7 @@ class TradingSim(object) :
     self.mkt_retrns[self.step] = retrn
     self.actions[self.step] = action
     
-    self.posns[self.step] = action - 1     
+    self.posns[self.step] = action 
     self.trades[self.step] = self.posns[self.step] - bod_posn
     
     trade_costs_pct = abs(self.trades[self.step]) * self.trading_cost_bps 
@@ -229,6 +228,12 @@ class TradingSim(object) :
                          columns=cols)
     return df
 
+from gym.envs.registration import register
+register(
+    id = 'trading-v0',
+    entry_point = 'trading_env:TradingEnv'
+)
+
 class TradingEnv(gym.Env):
   """This gym implements a simple trading environment for reinforcement learning.
 
@@ -258,11 +263,11 @@ class TradingEnv(gym.Env):
   metadata = {'render.modes': ['human']}
 
   def __init__(self):
-    self.days = 252
+    self.days = 60
     self.src = QuandlEnvSrc(days=self.days)
     self.sim = TradingSim(steps=self.days, trading_cost_bps=1e-3,
-                          time_cost_bps=1e-4)
-    self.action_space = spaces.Discrete( 3 )
+                          time_cost_bps=0)#1e-4)
+    self.action_space = self.action_space = spaces.Box(low=-1,high=1,shape=(1,))
     self.observation_space= spaces.Box( self.src.min_values,
                                         self.src.max_values)
     self.reset()
