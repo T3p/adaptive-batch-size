@@ -15,6 +15,14 @@ def create_mlp(input, layer_size, activ=tf.nn.relu):
 
     return x
 
+#Helper to get all network weights in a flat list
+def flatten_params(weights):
+    result = []
+    for arr in weights:
+        for x in arr:
+            result.append(np.asscalar(x))
+    return result
+
 class CategoricalPolicy(object):
     """
     Categorical Policy. Given a observation, returns probabilities
@@ -35,6 +43,7 @@ class CategoricalPolicy(object):
             output_layer = create_mlp(self._state,
                                       self._layers + [self._n_actions],
                                       activ=tf.nn.relu)
+
             self.action_probs = tf.nn.softmax(output_layer)
 
             picked_action_prob = tf.reduce_sum(self.action_probs * self._action,
@@ -65,6 +74,7 @@ class CategoricalPolicy(object):
         return action
 
 
+
 class NormalPolicy(object):
     """
     Normal Policy. Given a observation, draws an action from a parametrized 
@@ -90,6 +100,7 @@ class NormalPolicy(object):
         self._high_action = high_action
         self._min_std = min_std
 
+
     def _build(self):
         self.tf_scope = 'normal_policy'
         with tf.variable_scope(self.tf_scope):
@@ -98,10 +109,23 @@ class NormalPolicy(object):
             self.sigma = create_mlp(self._state, layer_size= self._std_layers + [self._action_dim])
             # self.sigma = tf.squeeze(self.sigma)
             self.sigma = tf.nn.softplus(self.sigma) + self._min_std
+ 
+            #### Weight manipulation 
+            self.weights = tf.trainable_variables()
+            self.delta_weights = []
+            for x in self.weights:
+                self.delta_weights.append(tf.placeholder(tf.float32,x.shape))
+
+            self.mu_weights = self.weights[:(1+len(self._mean_layers))*2]
+            self.sigma_weights = self.weights[(1+len(self._mean_layers))*2:]
+            self.update_weights = \
+            [self.weights[i].assign(self.weights[i]+self.delta_weights[i]) \
+                for i in range(len(self.weights))]
+            ####
 
             self.normal_dist = tf.contrib.distributions.MultivariateNormalDiag(
                 self.mu, self.sigma)
-            self.picked_action = self.normal_dist._sample_n(1)[0]
+            self.picked_action = self.normal_dist._sample_n(1)[0] 
 
             if self._high_action is not None and self._low_action is not None:
                 self.picked_action = tf.clip_by_value(
@@ -115,6 +139,9 @@ class NormalPolicy(object):
 
             # Loss
             self.log_prob = self.normal_dist.log_prob(self._action)
+            
+            #Score (gradient of policy logarithm)
+            self.scores = tf.gradients(self.log_prob,self.weights)
 
         return self
 
@@ -134,27 +161,46 @@ class NormalPolicy(object):
         reshaped_state = state.reshape([-1, self.state_size])
         sess = sess or tf.get_default_session()
         return sess.run(self.picked_action, {self._state: reshaped_state})
+     
+    #New functions
+    def log_gradients(self,state,action,sess=None):
+        sess = sess or tf.get_default_session()
+        gradients = sess.run(self.scores,{self._state: state, self._action: action})
+        return gradients
 
+    def get_flat_weights(self,sess=None):
+        sess = sess or tf.get_default_session()
+        weights = sess.run(self.weights)
+        return flatten_params(weights)
+
+    def update(self,delta_w,sess=None):
+        sess = sess or tf.get_default_session()
+        sess.run(self.update_weights,{self.delta_weights[i]: delta_w[i] for i in range(len(delta_w))})
+        
 
 if __name__ == "__main__":
-    N = 3
+    N = 1
     state_size = 2
     action_size = 1
     state = tf.placeholder(tf.float32, [N, state_size])
     action = tf.placeholder(tf.float32, [N, action_size])
-    pol = NormalPolicy(state, action, action_size, [],
-                       [])  # linear parametrization
+    pol = NormalPolicy(action_size, [],
+                       [],-1,1)(state,action)  # linear parametrization
 
-    states = np.arange(N * state_size).reshape((N, state_size))
-    actions = np.arange(N * action_size).reshape((N, action_size))
-    print(states, actions)
+    #Compute score and update network weights
+    s = np.array([1,1]).reshape((N,state_size))
+    a = np.array([0.5]).reshape((N,action_size))
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        mu = pol.normal_dist.mean().eval({pol._state: states})
-        print(mu)
-        sigma = pol.normal_dist.stddev().eval({pol._state: states})
-        print(sigma)
-        print(pol.predict_prob(states, actions))
+        mu = pol.normal_dist.mean().eval({pol._state: s})
+        print sess.run(pol.weights), '\n'
+        scores = pol.log_gradients(s,a)
+        Q = 10
+        alpha = 0.01
+        grads = map(lambda x: x*Q*alpha,scores)
+        pol.update(grads)
+        print sess.run(pol.weights), '\n'
+        
 
 
 # Example of MultivariateNormalDiag
