@@ -58,30 +58,38 @@ def closed_opt(d,infgrad):
     return eps_star, N_star
 
 #Optimization with Chebyshev bound for REINFORCE
-def cheb_reinforce(R,M_phi,sigma,infgrad,grad_range=None,sample_var=None,c=None):
+def cheb_reinforce(R,M_phi,sigma,infgrad,sample_var=None,c=None,sample_rng=None):
     d =  math.sqrt((R**2*M_phi**2*H*(1-gamma**H)**2)/ \
                 (sigma**2*(1-gamma)**2*delta))
     
     return (d,0) + closed_opt(d,infgrad)
 
 #Optimization with Chebyshev bound for GPOMDP
-def cheb_gpomdp(R,M_phi,sigma,infgrad,grad_range=None,sample_var=None,c=None):
+def cheb_gpomdp(R,M_phi,sigma,infgrad,sample_var=None,c=None,sample_rng=None):
     d = math.sqrt((R**2*M_phi**2)/(delta*sigma**2*(1-gamma)**2) * \
                        ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
                             2 * gamma**H  * (1-gamma**H)/(1-gamma)))
     return (d,0) + closed_opt(d,grad_J)
 
 #Optimization with Hoeffding bound
-def hoeffding(R,M_phi,sigma,infgrad,grad_range,sample_var=None,c=None):
+def hoeffding(R,M_phi,sigma,infgrad,sample_var=None,c=None,sample_rng=None):
     assert delta<1
-    d = grad_range*math.sqrt(math.log(2/delta)/2)
+    rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
+    d = rng*math.sqrt(math.log(2/delta)/2)
     return (d,0) + closed_opt(d,infgrad)
 
-#Optimizaiton with empirical Bernstein bound
-def bernstein(R,M_phi,sigma,infgrad,grad_range,sample_var,c):
+def sample_hoeffding(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
     assert delta<1
+    rng = sample_rng
+    d = rng*math.sqrt(math.log(2/delta)/2)
+    return (d,0) + closed_opt(d,infgrad)
+
+#Optimization with empirical Bernstein bound
+def bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng=None):
+    assert delta<1
+    rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
     d = math.sqrt(2*math.log(3.0/delta)*sample_var)
-    f = 3*grad_range*math.log(3.0/delta)
+    f = 3*rng*math.log(3.0/delta)
     N_0 = min(N_max,max(N_min,int(((d + math.sqrt(d**2 + 4*f*abs(grad_J))) \
             /(2*abs(grad_J)))**2) + 1))
     print 'N_0:', N_0
@@ -123,7 +131,7 @@ if __name__ == '__main__':
     #Options (args: N_min, N_max, delta, estimator,bound ,outfile, MaxN)
     verbose = 1 
     estimators = [reinforce,gpomdp]
-    bounds = [cheb_reinforce,cheb_gpomdp,hoeffding,bernstein]
+    bounds = [cheb_reinforce,cheb_gpomdp,hoeffding,bernstein,sample_hoeffding]
     N_min = int(sys.argv[1])
     assert N_min > 1
     N_max = int(sys.argv[2])
@@ -212,9 +220,8 @@ if __name__ == '__main__':
         grad_J = np.mean(grad_samples)
         sample_var = np.var(grad_samples,ddof=1)
         infgrad = abs(grad_J)
-        #rng_emp = max(grad_samples) - min(grad_samples)
-        rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
-        d,f,eps_star,N_star = stat_bound(R,M_phi,sigma,infgrad,rng,sample_var,c)
+        sample_rng = max(grad_samples) - min(grad_samples)
+        d,f,eps_star,N_star = stat_bound(R,M_phi,sigma,infgrad,sample_var,c,sample_rng)
            
         #Adaptive step-size
         actual_eps = d/math.sqrt(N) + f/N
