@@ -11,5 +11,5 @@ for _ in range(100):
         a = np.array([1]) #env.action_space.sample()
         s,r,done,info = env.step(a)
         nav =  info['nav']
-        print nav
+        print s
     print '\n'

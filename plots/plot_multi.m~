@@ -14,6 +14,6 @@ color = 'r--';
 plot_scaledData
 J_avg = sum(realJ.*batchsize)/sum(batchsize)
 
-xlabel('Trajectory')
+xlabel('Trajectories')
 ylabel('Th. performance')
-legend('chebyshev .95', 'bernstein .95')
+legend('gpomdp .95', 'bernstein .95')
