@@ -88,17 +88,19 @@ class NormalPolicy(object):
         high_action (np.float): upper bound of the action space
          For example in gym it is given by env.action_space.high
         min_std (np.array or float): minimal std
+        fixed_std: if true, std is constant and equal to min_std
     """
 
     def __init__(self, action_dim,
                  mean_layer_size, std_layer_size,
-                 low_action=None, high_action=None, min_std=1e-5):
+                 low_action=None, high_action=None, min_std=1e-5, fixed_std=False):
         self._action_dim = action_dim
         self._mean_layers = mean_layer_size
         self._std_layers = std_layer_size
         self._low_action = low_action
         self._high_action = high_action
         self._min_std = min_std
+        self.fixed_std = fixed_std
 
 
     def _build(self):
@@ -106,22 +108,29 @@ class NormalPolicy(object):
         with tf.variable_scope(self.tf_scope):
             self.mu = create_mlp(self._state, layer_size=self._mean_layers + [self._action_dim])
             # self.mu = tf.reshape(self.mu, shape=[-1, action_size])
-            self.sigma = create_mlp(self._state, layer_size= self._std_layers + [self._action_dim])
-            # self.sigma = tf.squeeze(self.sigma)
-            self.sigma = tf.nn.softplus(self.sigma) + self._min_std
+            if self.fixed_std:
+                self.sigma = np.ones((self._action_dim,),dtype=np.float32)*self._min_std
+            else:
+                self.sigma = create_mlp(self._state, layer_size= self._std_layers + [self._action_dim])
+                # self.sigma = tf.squeeze(self.sigma)
+                self.sigma = tf.nn.softplus(self.sigma) + self._min_std
  
-            #### Weight manipulation 
-            self.weights = tf.trainable_variables()
-            self.delta_weights = []
-            for x in self.weights:
-                self.delta_weights.append(tf.placeholder(tf.float32,x.shape))
-
-            self.mu_weights = self.weights[:(1+len(self._mean_layers))*2]
-            self.sigma_weights = self.weights[(1+len(self._mean_layers))*2:]
-            self.update_weights = \
-            [self.weights[i].assign(self.weights[i]+self.delta_weights[i]) \
-                for i in range(len(self.weights))]
-            ####
+            #weight manipulation 
+            self.weights = weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,self.tf_scope)
+            
+            nb_weights = 0
+            for w in weights: 
+                dim = np.prod(w.shape.as_list())
+                nb_weights+=dim
+            self.delta_weights = delta_weights = tf.placeholder(tf.float32,[nb_weights])
+            
+            self.update_weights = []
+            base = 0
+            for i in range(len(weights)):
+                dim = np.prod(weights[i].shape.as_list())
+                reshaped_delta = tf.reshape(self.delta_weights[base:base+dim],weights[i].shape)
+                self.update_weights.append(weights[i].assign_add(reshaped_delta))
+                base+=dim        
 
             self.normal_dist = tf.contrib.distributions.MultivariateNormalDiag(
                 self.mu, self.sigma)
@@ -142,6 +151,10 @@ class NormalPolicy(object):
             
             #Score (gradient of policy logarithm)
             self.scores = tf.gradients(self.log_prob,self.weights)
+            self.flat_scores = []
+            for x in self.scores:
+                self.flat_scores.append(tf.reshape(x,[-1]))
+            self.flat_scores = tf.concat(self.flat_scores,0)
 
         return self
 
@@ -163,19 +176,30 @@ class NormalPolicy(object):
         return sess.run(self.picked_action, {self._state: reshaped_state})
      
     #New functions
+    def get_mu(self,state,sess=None):
+        sess = sess or tf.get_default_session()
+        return sess.run(self.mu,{self._state: state})
+
+    def get_sigma(self,state,sess=None):
+        sess = sess or tf.get_default_session()
+        if self.fixed_std:
+            return self.sigma
+        else:
+            return sess.run(self.sigma,{self._state: state})
+        
     def log_gradients(self,state,action,sess=None):
         sess = sess or tf.get_default_session()
-        gradients = sess.run(self.scores,{self._state: state, self._action: action})
+        gradients = sess.run(self.flat_scores,{self._state: state, self._action: action})
         return gradients
 
-    def get_flat_weights(self,sess=None):
+    def get_weights(self,sess=None):
         sess = sess or tf.get_default_session()
         weights = sess.run(self.weights)
         return flatten_params(weights)
 
     def update(self,delta_w,sess=None):
         sess = sess or tf.get_default_session()
-        sess.run(self.update_weights,{self.delta_weights[i]: delta_w[i] for i in range(len(delta_w))})
+        sess.run(self.update_weights,{self.delta_weights: delta_w})
         
 
 if __name__ == "__main__":
@@ -185,21 +209,23 @@ if __name__ == "__main__":
     state = tf.placeholder(tf.float32, [N, state_size])
     action = tf.placeholder(tf.float32, [N, action_size])
     pol = NormalPolicy(action_size, [],
-                       [],-1,1)(state,action)  # linear parametrization
+                       [],-1,1,min_std=0.1,
+                        fixed_std=True)(state,action)  
 
     #Compute score and update network weights
     s = np.array([1,1]).reshape((N,state_size))
     a = np.array([0.5]).reshape((N,action_size))
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        mu = pol.normal_dist.mean().eval({pol._state: s})
-        print sess.run(pol.weights), '\n'
+        print pol.get_mu(s), pol.get_sigma(s), '\n'
+        print pol.get_weights(), '\n'
         scores = pol.log_gradients(s,a)
+        print scores, '\n'
         Q = 10
         alpha = 0.01
         grads = map(lambda x: x*Q*alpha,scores)
         pol.update(grads)
-        print sess.run(pol.weights), '\n'
+        print pol.get_weights(), '\n'
         
 
 
