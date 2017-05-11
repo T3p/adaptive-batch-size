@@ -147,7 +147,7 @@ class QuandlEnvSrc(object):
     
   def reset(self):
     # we want contiguous data
-    self.idx = np.random.randint( low = 0, high=len(self.data.index)-self.days )
+    self.idx = 0#np.random.randint( low = 0, high=len(self.data.index)-self.days )
     self.step = 0
 
   def _step(self):    
@@ -268,7 +268,7 @@ class TradingEnv(gym.Env):
   metadata = {'render.modes': ['human']}
 
   def __init__(self):
-    self.days = 1000
+    self.days = 252
     self.src = QuandlEnvSrc(days=self.days)
     self.sim = TradingSim(steps=self.days, trading_cost_bps=1e-3,
                           time_cost_bps=1e-4)
