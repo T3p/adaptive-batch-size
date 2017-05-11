@@ -65,23 +65,23 @@ def closed_opt(d,infgrad):
     return eps_star, N_star
 
 #Optimization with Chebyshev bound for REINFORCE
-def cheb_reinforce(R,M_phi,sigma,infgrad,sample_var=None,c=None,sample_rng=None):
+def cheb_reinforce(R,M_phi,sigma,infgrad,grad_range=None,sample_var=None,c=None):
     d =  math.sqrt((R**2*M_phi**2*H*(1-gamma**H)**2)/ \
                 (sigma**2*(1-gamma)**2*delta))
     
     return (d,0) + closed_opt(d,infgrad)
 
 #Optimization with Chebyshev bound for GPOMDP
-def cheb_gpomdp(R,M_phi,sigma,infgrad,sample_var=None,c=None,sample_rng=None):
+def cheb_gpomdp(R,M_phi,sigma,infgrad,grad_range=None,sample_var=None,c=None):
     d = math.sqrt((R**2*M_phi**2)/(delta*sigma**2*(1-gamma)**2) * \
                        ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
                             2 * gamma**H  * (1-gamma**H)/(1-gamma)))
     return (d,0) + closed_opt(d,infgrad)
 
 #Optimization with Hoeffding bound
-def hoeffding(R,M_phi,sigma,infgrad,sample_var=None,c=None,sample_rng=None):
-    rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
-    d = rng*math.sqrt(math.log(2/delta)/2)
+def hoeffding(R,M_phi,sigma,infgrad,grad_range,sample_var=None,c=None):
+    assert delta<1
+    d = grad_range*math.sqrt(math.log(2/delta)/2)
     return (d,0) + closed_opt(d,infgrad)
 
 def sample_hoeffding(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
@@ -90,12 +90,13 @@ def sample_hoeffding(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
     return (d,0) + closed_opt(d,infgrad)
 
 #Optimization with empirical Bernstein bound
-def bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng=None):
-    rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
+def bernstein(R,M_phi,sigma,infgrad,grad_range,sample_var,c):
+    assert delta<1
     d = math.sqrt(2*math.log(3.0/delta)*sample_var)
-    f = 3*rng*math.log(3.0/delta)
+    f = 3*grad_range*math.log(3.0/delta)
     N_0 = min(N_max,max(N_min,int(((d + math.sqrt(d**2 + 4*f*infgrad)) \
             /(2*infgrad))**2) + 1))
+    print 'N_0:', N_0
     ups_max = -np.inf
     eps_star = np.inf
     N_star = N_0
@@ -109,12 +110,13 @@ def bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng=None):
             N_star = N
     return d,f,eps_star,N_star
 
-def sample_bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
+def sample_bernstein(R,M_phi,sigma,infgrad,grad_range,sample_var,c):
     rng = sample_rng
     d = math.sqrt(2*math.log(3.0/delta)*sample_var)
     f = 3*rng*math.log(3.0/delta)
     N_0 = min(N_max,max(N_min,int(((d + math.sqrt(d**2 + 4*f*infgrad)) \
             /(2*infgrad))**2) + 1))
+    print 'N_0:', N_0
     ups_max = -np.inf
     eps_star = np.inf
     N_star = N_0
@@ -143,7 +145,7 @@ if __name__ == '__main__':
     n_obs = 1
     action_size = 1 #scalar action
     sigma = 1./math.sqrt(obs_size)
-    neurons_per_input = 5
+    neurons_per_input = 1
     state_var = tf.placeholder(tf.float32, [n_obs,obs_size])
     action_var = tf.placeholder(tf.float32, [n_obs,action_size])
     pol = NormalPolicy(1,[obs_size*neurons_per_input],[],a_min,a_max, \
@@ -275,7 +277,7 @@ if __name__ == '__main__':
                 grad_samples[j,:] = grad_estimator(scores[:,:,j],disc_rewards) 
         
             grad_samples = np.memmap(grads_path,dtype=float,shape=(m,N),mode='w+')  
-            Parallel(n_jobs=n_cores,backend="threading")(delayed(compute_grads)(j,grad_samples) for j in xrange(m))
+            Parallel(n_jobs=n_cores)(delayed(compute_grads)(j,grad_samples) for j in xrange(m))
             for j in range(m):
                 grads_J[j] = np.mean(grad_samples[j,:])
                 sample_vars[j] = np.var(grad_samples[j],ddof=1)
@@ -286,7 +288,7 @@ if __name__ == '__main__':
             candidate_ranges = [max(grad_abs[j,:]) - min(grad_abs[j,:]) for j in range(m)]
             rng = max(candidate_ranges) 
             print 'Range:', rng
-            d,f,eps_star,N_star = stat_bound(R,M_phi,sigma,infgrad,sample_var,c,rng)
+            d,f,eps_star,N_star = stat_bound(R,M_phi,sigma,infgrad,rng,sample_var,c)
             del grad_samples
                
             #Adaptive step-size
@@ -310,7 +312,6 @@ if __name__ == '__main__':
                 if eps_star>=infgrad:
                     print 'eps too high!'
             N = min(N_max,max(N_min,N_star)) 
-            print 'Next N:', N
         
             #Meta
             if verbose>0:

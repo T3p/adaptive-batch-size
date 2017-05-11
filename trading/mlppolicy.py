@@ -19,7 +19,7 @@ def create_mlp(input, layer_size, activ=tf.nn.relu):
 def flatten_params(weights):
     result = []
     for arr in weights:
-        for x in arr:
+        for x in np.nditer(arr):
             result.append(np.asscalar(x))
     return result
 
@@ -123,13 +123,22 @@ class NormalPolicy(object):
                 dim = np.prod(w.shape.as_list())
                 nb_weights+=dim
             self.delta_weights = delta_weights = tf.placeholder(tf.float32,[nb_weights])
-            
+            self.custom_weights = custom_weights = tf.placeholder(tf.float32,[nb_weights])            
+
             self.update_weights = []
             base = 0
             for i in range(len(weights)):
                 dim = np.prod(weights[i].shape.as_list())
                 reshaped_delta = tf.reshape(self.delta_weights[base:base+dim],weights[i].shape)
                 self.update_weights.append(weights[i].assign_add(reshaped_delta))
+                base+=dim        
+
+            self.reset_weights = []
+            base = 0
+            for i in range(len(weights)):
+                dim = np.prod(weights[i].shape.as_list())
+                reshaped_custom = tf.reshape(self.custom_weights[base:base+dim],weights[i].shape)
+                self.reset_weights.append(weights[i].assign(reshaped_custom))
                 base+=dim        
 
             self.normal_dist = tf.contrib.distributions.MultivariateNormalDiag(
@@ -200,7 +209,12 @@ class NormalPolicy(object):
     def update(self,delta_w,sess=None):
         sess = sess or tf.get_default_session()
         sess.run(self.update_weights,{self.delta_weights: delta_w})
-        
+ 
+    def reset(self,custom_w,sess=None):
+        sess = sess or tf.get_default_session()
+        sess.run(self.reset_weights,{self.custom_weights: custom_w})       
+
+
 
 if __name__ == "__main__":
     N = 1

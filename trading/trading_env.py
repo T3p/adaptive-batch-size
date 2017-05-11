@@ -115,8 +115,13 @@ class QuandlEnvSrc(object):
 
     #Get data from Google Finance
     print 'getting data'
-    df = google_data('SPY',60,15)
-    #df = quandl.get(self.name) if self.auth=='' else quandl.get(self.name, authtoken=self.auth)
+    
+    #df = google_data('SPY',60,15)
+    #df = quandl.get(self.name) if self.auth=='' else quandl.get(self.name, authtoken=self.auth) 
+    df = pd.read_csv('stock.txt',sep=" ")   
+
+    #df.to_csv('stock.txt',header=True,index=False,sep=' ', mode='w')
+
     print 'got data'
     ####
     
@@ -263,10 +268,10 @@ class TradingEnv(gym.Env):
   metadata = {'render.modes': ['human']}
 
   def __init__(self):
-    self.days = 60
+    self.days = 1000
     self.src = QuandlEnvSrc(days=self.days)
     self.sim = TradingSim(steps=self.days, trading_cost_bps=1e-3,
-                          time_cost_bps=0)#1e-4)
+                          time_cost_bps=1e-4)
     self.action_space = self.action_space = spaces.Box(low=-1,high=1,shape=(1,))
     self.observation_space= spaces.Box( self.src.min_values,
                                         self.src.max_values)
