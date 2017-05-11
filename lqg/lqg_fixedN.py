@@ -197,7 +197,6 @@ if __name__ == '__main__':
     N = N_min
     N_tot = N
     J_est = J = -np.inf
-    rng_emp = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
     bad_updates = 0
     iteration = 0
 
@@ -258,7 +257,7 @@ if __name__ == '__main__':
             print 'epsilon:', eps_star, 'grad:', grad_J, 'f:', f
             if eps_star>=infgrad:
                 print 'Optimal eps is too high!'
-        N = min(N_max,max(N_min,N_star)) 
+        N = N_min#min(N_max,max(N_min,N_star)) 
     
         #Meta
         if verbose>0:

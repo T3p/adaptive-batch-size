@@ -116,11 +116,11 @@ class QuandlEnvSrc(object):
     #Get data from Google Finance
     print 'getting data'
     
-    #df = google_data('SPY',60,15)
+    df = google_data('SPY',60,15)
     #df = quandl.get(self.name) if self.auth=='' else quandl.get(self.name, authtoken=self.auth) 
-    df = pd.read_csv('stock.txt',sep=" ")   
+    df = pd.read_csv('stock_google.txt',sep=" ")   
 
-    #df.to_csv('stock.txt',header=True,index=False,sep=' ', mode='w')
+    #df.to_csv('stock_google.txt',header=True,index=False,sep=' ', mode='w')
 
     print 'got data'
     ####
