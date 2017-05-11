@@ -41,17 +41,22 @@ def reinforce(scores,disc_rewards):
 def gpomdp(scores,disc_rewards):
     N = scores.shape[0]
     H = scores.shape[1]
-    cumulative_scores = np.zeros((N,H))
+    m = scores.shape[2]
+    cumulative_scores = np.zeros((N,H,m))
+
     #optimal baseline:
-    b = np.zeros(H)
+    b = np.zeros((H,m))
     for k in range(0,H):
-        cumulative_scores[:,k] = sum(scores[:,i] for i in range(0,k+1))
-        cumul_score_mean = np.mean(cumulative_scores[:,k]**2)
-        if cumul_score_mean!=0:
-            b[k] = np.mean(cumulative_scores[:,k]**2*disc_rewards[:,k])/ \
-                    cumul_score_mean 
+        cumulative_scores[:,k,:] = sum(scores[:,i,:] for i in range(0,k+1))
+        cumul_score_mean = np.mean(cumulative_scores[:,k,:]**2,0)
+        for j in range(m):
+            if cumul_score_mean[j]!=0:
+                b[k,j] = np.mean(cumulative_scores[:,k,j]**2*disc_rewards[:,k])/ \
+                    cumul_score_mean[j] 
     #gradient estimate:
-    return sum(cumulative_scores[:,i]*(disc_rewards[:,i] - b[i]) for i in range(0,H))
+    return np.array(
+            [sum(cumulative_scores[:,i,j]*(disc_rewards[:,i] - b[i,j]) for i in range(0,H)) 
+                for j in range(m)])
 
 #Gradient Range: valid only in case of non-negative or non-positive reward
 def grad_range(R,M_phi,sigma,gamma,a_max,action_volume):
@@ -143,10 +148,11 @@ if __name__ == '__main__':
     n_obs = 1
     action_size = 1 #scalar action
     sigma = 1./math.sqrt(obs_size)
-    neurons_per_input = 5
+    neurons_per_input = 32
+    hidden_neurons = 2
     state_var = tf.placeholder(tf.float32, [n_obs,obs_size])
     action_var = tf.placeholder(tf.float32, [n_obs,action_size])
-    pol = NormalPolicy(1,[obs_size*neurons_per_input],[],a_min,a_max, \
+    pol = NormalPolicy(1,[hidden_neurons],[],a_min,a_max, \
                 min_std=sigma,fixed_std=True)(state_var,action_var)
     H = env.days
     print 'Trajectory size:', H
@@ -185,23 +191,6 @@ if __name__ == '__main__':
     if len(sys.argv) > 7:
         N_maxtot = int(sys.argv[7])  
  
-    #Trajectory (to run in parallel)
-    def trajectory(n,noises,traces):
-        s = env.reset()
-        max_s = max(abs(s))
-
-        for l in range(H): 
-            s_feed = s.reshape((n_obs,obs_size))
-            mu = np.asscalar(pol.get_mu(s_feed))
-            a = np.clip(mu + sigma*noises[l],a_min,a_max)
-            a_feed = a.reshape((n_obs,action_size))
-            score = pol.log_gradients(s_feed,a_feed)
-            traces[n,l,0:m] = score 
-            s,r,_,_ = env.step(np.array([a]))
-            max_s = max(max_s,max(abs(s)))
-            traces[n,l,m] = r  
-        
-        return max_s
 
     #LEARNING
 
@@ -233,17 +222,26 @@ if __name__ == '__main__':
                 print 'iteration:', iteration, 'N:', N, #'theta:', theta  
                 
             #Run N trajectories in parallel  
-            noises = np.random.normal(0,1,(N,H))
             #traces = np.memmap(traces_path,dtype=float,shape=(N,H,m+1),mode='w+')  
             #max_states = Parallel(n_jobs=n_cores)(delayed(trajectory)(n,noises[n],traces) for n in xrange(N))
-            traces = np.zeros((N,H,m+1))
-            max_states = [trajectory(n,noises[n],traces) for n in range(N)]
-            scores = traces[:,:,0:m]
-            rewards = traces[:,:,m]
-            disc_rewards = rewards
+
+            max_s = max_r = 0
+            scores = np.zeros((N,H,m))
+            disc_rewards = np.zeros((N,H))
+
             for n in range(N):
-                for l in range(H):
-                    disc_rewards[n,l]*=gamma**l
+                s = env.reset()
+
+                for l in range(H): 
+                    s_feed = s.reshape((n_obs,obs_size))
+                    mu = np.asscalar(pol.get_mu(s_feed))
+                    a = np.clip(mu + sigma*np.random.randn(),a_min,a_max)
+                    a_feed = a.reshape((n_obs,action_size))
+                    scores[n,l] = pol.log_gradients(s_feed,a_feed)
+                    s,r,_,_ = env.step(np.array([a]))
+                    max_s = max(max_s,max(abs(s)))
+                    max_r = max(max_r,abs(r))
+                    disc_rewards[n][l] = r*gamma**l
 
             #Performance estimation
             J_est0 = J_est
@@ -257,10 +255,9 @@ if __name__ == '__main__':
             if verbose>0:   
                 print 'J~:', J_est
                 print 'deltaJ~:', deltaJ_est
-            del traces
 
-            R = max(R,np.max(abs(rewards)))
-            M_phi = max(M_phi,max(max_states))
+            R = max(R,max_r)
+            M_phi = max(M_phi,max_s)
             if verbose>0:
                 print 'R:', R, 'M_phi:', M_phi
             c = (R*M_phi**2*(gamma*math.sqrt(2*math.pi)*sigma + 2*(1-gamma)*action_volume))/ \
@@ -268,23 +265,16 @@ if __name__ == '__main__':
         
             #Gradient estimation
             print 'Computing gradients'
-            grads_J = np.zeros(m)
-            sample_vars = np.zeros(m)
-        
-            def compute_grads(j,grad_samples):
-                grad_samples[j,:] = grad_estimator(scores[:,:,j],disc_rewards) 
-        
-            grad_samples = np.memmap(grads_path,dtype=float,shape=(m,N),mode='w+')  
-            Parallel(n_jobs=n_cores,backend="threading")(delayed(compute_grads)(j,grad_samples) for j in xrange(m))
-            for j in range(m):
-                grads_J[j] = np.mean(grad_samples[j,:])
-                sample_vars[j] = np.var(grad_samples[j],ddof=1)
-            infgrad = max(abs(grads_J))
-            k = np.argmax(abs(grads_J))
+            grad_samples = grad_estimator(scores,disc_rewards)
+            grads_J = np.mean(grad_samples,axis=1)
+            sample_vars = np.var(grad_samples,axis=1,ddof=1) 
+            grad_abs = abs(grads_J)
+
+            infgrad = max(grad_abs)
+            print 'maxgrad:', infgrad
+            k = np.argmax(grad_abs)
             sample_var = max(sample_vars)
-            grad_abs = abs(grad_samples)
-            candidate_ranges = [max(grad_abs[j,:]) - min(grad_abs[j,:]) for j in range(m)]
-            rng = max(candidate_ranges) 
+            rng = max([max(grad_samples[j,:]) - min(grad_samples[j,:]) for j in range(m)]) 
             print 'Range:', rng
             d,f,eps_star,N_star = stat_bound(R,M_phi,sigma,infgrad,sample_var,c,rng)
             del grad_samples
@@ -297,7 +287,7 @@ if __name__ == '__main__':
             
             #Record
             if record:
-                fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
+                pass#fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
 
             #Update
             alpha_vect = np.zeros((m,),dtype=np.float32)

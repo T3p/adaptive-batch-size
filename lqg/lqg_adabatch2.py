@@ -69,43 +69,60 @@ def cheb_gpomdp(R,M_phi,sigma,infgrad,sample_var=None,c=None,sample_rng=None):
     d = math.sqrt((R**2*M_phi**2)/(delta*sigma**2*(1-gamma)**2) * \
                        ((1-gamma**(2*H))/(1-gamma**2)+ H*gamma**(2*H)  - \
                             2 * gamma**H  * (1-gamma**H)/(1-gamma)))
-    return (d,0) + closed_opt(d,grad_J)
+    return (d,0) + closed_opt(d,infgrad)
 
 #Optimization with Hoeffding bound
 def hoeffding(R,M_phi,sigma,infgrad,sample_var=None,c=None,sample_rng=None):
-    assert delta<1
     rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
     d = rng*math.sqrt(math.log(2/delta)/2)
     return (d,0) + closed_opt(d,infgrad)
 
 def sample_hoeffding(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
-    assert delta<1
     rng = sample_rng
     d = rng*math.sqrt(math.log(2/delta)/2)
     return (d,0) + closed_opt(d,infgrad)
 
 #Optimization with empirical Bernstein bound
 def bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng=None):
-    assert delta<1
     rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
     d = math.sqrt(2*math.log(3.0/delta)*sample_var)
     f = 3*rng*math.log(3.0/delta)
-    N_0 = min(N_max,max(N_min,int(((d + math.sqrt(d**2 + 4*f*abs(grad_J))) \
-            /(2*abs(grad_J)))**2) + 1))
+    N_0 = min(N_max,max(N_min,int(((d + math.sqrt(d**2 + 4*f*infgrad)) \
+            /(2*infgrad))**2) + 1))
     print 'N_0:', N_0
     ups_max = -np.inf
     eps_star = np.inf
     N_star = N_0
     for N in range(N_0,N_max+1):
         eps = d/math.sqrt(N) + f/N
-        upsilon = (abs(grad_J) - eps)**4/ \
-                    (4*c*(abs(grad_J) + eps)**2*N)
+        upsilon = (infgrad - eps)**4/ \
+                    (4*c*(infgrad + eps)**2*N)
         if upsilon>ups_max:
             ups_max = upsilon
             eps_star = eps
             N_star = N
     return d,f,eps_star,N_star
 
+def sample_bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
+    rng = sample_rng
+    d = math.sqrt(2*math.log(3.0/delta)*sample_var)
+    f = 3*rng*math.log(3.0/delta)
+    N_0 = min(N_max,max(N_min,int(((d + math.sqrt(d**2 + 4*f*infgrad)) \
+            /(2*infgrad))**2) + 1))
+    print 'N_0:', N_0
+    ups_max = -np.inf
+    eps_star = np.inf
+    N_star = N_0
+    for N in range(N_0,N_max+1):
+        eps = d/math.sqrt(N) + f/N
+        upsilon = (infgrad - eps)**4/ \
+                    (4*c*(infgrad + eps)**2*N)
+        if upsilon>ups_max:
+            ups_max = upsilon
+            eps_star = eps
+            N_star = N
+    return d,f,eps_star,N_star
+    
 
 if __name__ == '__main__':
     env = gym.make('LQG1D-v0')
