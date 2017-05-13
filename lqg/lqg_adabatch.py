@@ -250,7 +250,7 @@ if __name__ == '__main__':
             fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
 
         #Update
-        theta+=alpha*infgrad
+        theta+=alpha*grad_J
         
         #Adaptive batch-size (used for next batch)
         if verbose>0:
