@@ -82,6 +82,13 @@ def sample_hoeffding(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
     d = rng*math.sqrt(math.log(2/delta)/2)
     return (d,0) + closed_opt(d,infgrad)
 
+def evaluate_N(N,d,f,c,infgrad):
+    eps = d/math.sqrt(N) + f/N
+    upsilon = (infgrad - eps)**4/ \
+                (4*c*(infgrad + eps)**2*N)
+    return upsilon,eps
+
+
 #Optimization with empirical Bernstein bound
 def bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng=None):
     rng = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
@@ -93,14 +100,10 @@ def bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng=None):
     ups_max = -np.inf
     eps_star = np.inf
     N_star = N_0
-    for N in range(N_0,N_max+1):
-        eps = d/math.sqrt(N) + f/N
-        upsilon = (infgrad - eps)**4/ \
-                    (4*c*(infgrad + eps)**2*N)
-        if upsilon>ups_max:
-            ups_max = upsilon
-            eps_star = eps
-            N_star = N
+    n_cores = multiprocessing.cpu_count()
+    ups,epss = zip(*Parallel(n_jobs=n_cores)(delayed(evaluate_N)(N,d,f,c,infgrad) for N in xrange(N_0,N_max+1)))
+    N_star = N_0 + np.argmax(ups)
+    eps_star = epss[N_star - N_0]
     return d,f,eps_star,N_star
 
 def sample_bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
@@ -113,14 +116,10 @@ def sample_bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
     ups_max = -np.inf
     eps_star = np.inf
     N_star = N_0
-    for N in range(N_0,N_max+1):
-        eps = d/math.sqrt(N) + f/N
-        upsilon = (infgrad - eps)**4/ \
-                    (4*c*(infgrad + eps)**2*N)
-        if upsilon>ups_max:
-            ups_max = upsilon
-            eps_star = eps
-            N_star = N
+    n_cores = multiprocessing.cpu_count()
+    ups,epss = zip(*Parallel(n_jobs=n_cores)(delayed(evaluate_N)(N,d,f,c,infgrad) for N in xrange(N_0,N_max+1)))
+    N_star = N_0 + np.argmax(ups)
+    eps_star = epss[N_star - N_0]
     return d,f,eps_star,N_star
     
 
@@ -148,7 +147,7 @@ if __name__ == '__main__':
     #Options (args: N_min, N_max, delta, estimator,bound ,outfile, MaxN)
     verbose = 1 
     estimators = [reinforce,gpomdp]
-    bounds = [cheb_reinforce,cheb_gpomdp,hoeffding,bernstein,sample_hoeffding]
+    bounds = [cheb_reinforce,cheb_gpomdp,hoeffding,bernstein,sample_hoeffding,sample_bernstein]
     N_min = int(sys.argv[1])
     assert N_min > 1
     N_max = int(sys.argv[2])
