@@ -5,7 +5,7 @@ from mlppolicy import NormalPolicy
 
 #OpenAI
 import gym
-from trading_env import TradingEnv
+from trading_env3 import TradingEnv
 
 #parallelism
 import sys
@@ -95,27 +95,28 @@ if __name__ == '__main__':
     env = gym.make('trading-v0')
 
     #Fixed batch-size and step-size
-    N_fix = 10
+    N_fix = 100
     alpha_fix = 1e-2
+    max_iter = 100000
 
     #Task constants
     a_max = np.asscalar(env.action_space.high)
     a_min = np.asscalar(env.action_space.low)
     #action_volume = a_max-a_min  #|A|
     gamma = 0.9
-    
+    H = env.days
     #Normal policy with 2-layers NN mean and fixed std
-    obs_size = 5
+    obs_size = len(env.reset())
     n_obs = 1
     action_size = 1 #scalar action
-    sigma = 0.0001#1./math.sqrt(obs_size)
-    neurons_per_input = 1
-    hidden_neurons = obs_size*neurons_per_input
+    sigma = 0.1#1./math.sqrt(obs_size)
+    hidden_neurons = 10
+    hidden_layers = 1
     state_var = tf.placeholder(tf.float32, [n_obs,obs_size])
     action_var = tf.placeholder(tf.float32, [n_obs,action_size])
     pol = NormalPolicy(1,[hidden_neurons],[],a_min,a_max, \
                 min_std=sigma,fixed_std=True)(state_var,action_var)
-    H = env.days
+    
     print 'Trajectory size:', H
      
     #Options (args: delta, N_min, N_max, estimator,bound ,outfile, MaxN)
@@ -280,7 +281,7 @@ if __name__ == '__main__':
 
             #Update
             #alpha_vect = np.zeros((m,),dtype=np.float32)
-            alpha_vect = np.ones(m)*alpha_fix#alpha_vect[k] = alpha
+            alpha_vect = np.ones(m)*alpha_fix/iteration**.5#alpha_vect[k] = alpha
             pol.update(grads_J*alpha_vect)
             
             #Adaptive batch-size (used for next batch)
@@ -292,12 +293,18 @@ if __name__ == '__main__':
             #print 'Next N:', N
         
             #Meta
+            pol.save_weights(idx=54)
             if verbose>0:
                 print 'time:', time.time() - start, '\n'
             N_tot+=N
             if N_tot>N_maxtot:
                 print "Max N reached"
                 break
+            if iteration>=max_iter:
+                print "Max iteration reached"
+                break
+
+        pol.save_weights(idx=54)
               
     #Cleanup 
     print '\nStopped after',iteration,'iterations'

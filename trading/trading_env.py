@@ -142,12 +142,20 @@ class QuandlEnvSrc(object):
     df['Return'] = R # we don't want our returns scaled
     self.min_values = df.min(axis=0)
     self.max_values = df.max(axis=0)
+
+    #Partition training and test set
+    self.K = int(0.7*len(df))
     self.data = df
     self.step = 0
     
-  def reset(self):
+  def reset(self,testing=False):
     # we want contiguous data
-    self.idx = 0#np.random.randint( low = 0, high=len(self.data.index)-self.days )
+    if testing:
+        assert self.days<len(self.data) - K
+        self.idx = K
+    else:
+        starting_points = np.linspace(0,self.K-self.days,5)
+        self.idx = int(random.choice(starting_points))
     self.step = 0
 
   def _step(self):    
@@ -268,7 +276,7 @@ class TradingEnv(gym.Env):
   metadata = {'render.modes': ['human']}
 
   def __init__(self):
-    self.days = 252
+    self.days = 300
     self.src = QuandlEnvSrc(days=self.days)
     self.sim = TradingSim(steps=self.days, trading_cost_bps=1e-3,
                           time_cost_bps=1e-4)
@@ -296,8 +304,8 @@ class TradingEnv(gym.Env):
 
     return observation, reward, done, info
   
-  def _reset(self):
-    self.src.reset()
+  def _reset(self,testing=False):
+    self.src.reset(testing)
     self.sim.reset()
     return self.src._step()[0]
     

@@ -214,7 +214,13 @@ class NormalPolicy(object):
         sess = sess or tf.get_default_session()
         sess.run(self.reset_weights,{self.custom_weights: custom_w})       
 
+    def save_weights(self,idx=0,sess=None):
+        weights = self.get_weights(sess)
+        np.save('weights/nn_weights'+str(idx),weights)
 
+    def load_weights(self,idx=0,sess=None):
+        saved_w = np.load('weights/nn_weights'+str(idx)+'.npy')
+        self.reset(saved_w,sess)
 
 if __name__ == "__main__":
     N = 1
@@ -231,14 +237,20 @@ if __name__ == "__main__":
     a = np.array([0.5]).reshape((N,action_size))
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        print pol.get_mu(s), pol.get_sigma(s), '\n'
+        #print pol.get_mu(s), pol.get_sigma(s), '\n'
+        w = np.ones(len(pol.get_weights()))
         print pol.get_weights(), '\n'
-        scores = pol.log_gradients(s,a)
-        print scores, '\n'
-        Q = 10
-        alpha = 0.01
-        grads = map(lambda x: x*Q*alpha,scores)
-        pol.update(grads)
+        #scores = pol.log_gradients(s,a)
+        #print scores, '\n'
+        #Q = 10
+        #alpha = 0.01
+        #grads = map(lambda x: x*Q*alpha,scores)
+        pol.reset(2.*w)
+        print pol.get_weights(), '\n'
+        pol.save_weights()
+        pol.reset(11.*w)
+        print pol.get_weights(), '\n'
+        pol.load_weights()
         print pol.get_weights(), '\n'
         
 

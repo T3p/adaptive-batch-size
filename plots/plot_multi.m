@@ -9,7 +9,7 @@ color = 'b';
 plot_scaledData
 J_avg = sum(realJ.*batchsize)/sum(batchsize)
 
-M = importdata('~/adaptive-batch-size/lqg/results/bernstein_test0',' ',1);
+M = importdata('~/adaptive-batch-size/lqg/results/final/adabatch_est1_bound2__delta0_95_sample1.out',' ',1);
 color = 'r--';
 plot_scaledData
 J_avg = sum(realJ.*batchsize)/sum(batchsize)
