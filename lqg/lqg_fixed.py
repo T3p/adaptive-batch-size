@@ -162,7 +162,7 @@ if __name__ == '__main__':
     grad_estimator = estimators[k]
     k = 4
     if len(sys.argv)>5:
-        k = int(sys.argv[5])
+        alpha_fix = float(sys.argv[5])
     assert k<len(bounds)
     stat_bound = bounds[k]
     print 'Using', grad_estimator.__name__, ',', stat_bound.__name__
@@ -241,7 +241,7 @@ if __name__ == '__main__':
            
         #Adaptive step-size
         actual_eps = d/math.sqrt(N) + f/N
-        alpha = (infgrad - actual_eps)**2/(2*c*(infgrad + actual_eps)**2) 
+        alpha = alpha_fix#(infgrad - actual_eps)**2/(2*c*(infgrad + actual_eps)**2) 
         if verbose>0:
                 print 'alpha:', alpha
         
