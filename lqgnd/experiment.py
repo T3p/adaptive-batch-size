@@ -8,7 +8,7 @@ N_max = 100000
 for i in range(1):
     for delta in [0.95]:
         for estimator in [1]:
-            for bound in [1]:
+            for bound in [5]:
                 if estimator+bound==1:
                     continue
                 filename = "results/adabatch_est{}_bound{}__delta{}_sample{}".format(estimator,bound,delta,i+1)

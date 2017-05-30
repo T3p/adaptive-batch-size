@@ -99,10 +99,14 @@ def bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng=None):
     ups_max = -np.inf
     eps_star = np.inf
     N_star = N_0
-    n_cores = multiprocessing.cpu_count()
-    ups,epss = zip(*Parallel(n_jobs=n_cores)(delayed(evaluate_N)(N,d,f,c,infgrad) for N in xrange(N_0,N_max+1)))
-    N_star = N_0 + np.argmax(ups)
-    eps_star = epss[N_star - N_0]
+    for n in range(N_0,N_max):
+        ups,eps = evaluate_N(n,d,f,c,infgrad)
+        if ups>ups_max:
+            ups_max = ups
+            eps_star = eps
+            N_star = n
+        else:
+            break
     return d,f,eps_star,N_star
 
 def sample_bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
@@ -115,10 +119,14 @@ def sample_bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
     ups_max = -np.inf
     eps_star = np.inf
     N_star = N_0
-    n_cores = multiprocessing.cpu_count()
-    ups,epss = zip(*Parallel(n_jobs=n_cores)(delayed(evaluate_N)(N,d,f,c,infgrad) for N in xrange(N_0,N_max+1)))
-    N_star = N_0 + np.argmax(ups)
-    eps_star = epss[N_star - N_0]
+    for n in range(N_0,N_max):
+        ups,eps = evaluate_N(n,d,f,c,infgrad)
+        if ups>ups_max:
+            ups_max = ups
+            eps_star = eps
+            N_star = n
+        else:
+            break
     return d,f,eps_star,N_star
     
 
@@ -210,7 +218,7 @@ if __name__ == '__main__':
             
         #Run N trajectories in parallel  
         initials = np.random.uniform(-env.max_pos,env.max_pos,(N,dim))
-        noises = np.random.normal(0,1,(N,H))
+        noises = np.random.normal(0,1,(N,H,2))
         traces = np.memmap(traces_path,dtype=float,shape=(N,H,m+1),mode='w+')  
         Parallel(n_jobs=n_cores)(delayed(trajectory)(n,initials[n],noises[n],traces) for n in xrange(N))
         scores = traces[:,:,0:m]
@@ -220,7 +228,7 @@ if __name__ == '__main__':
         J_est0 = J_est
         J0 = J
         J_est = np.mean(np.sum(disc_rewards,1))
-        J = env.computeJ(theta,sigma,N)
+        J = env.computeJ(theta,sigma,1000000)
         deltaJ_est = J_est - J_est0
         deltaJ = J - J0
         if iteration>1:
