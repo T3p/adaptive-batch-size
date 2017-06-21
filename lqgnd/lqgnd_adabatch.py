@@ -135,6 +135,7 @@ if __name__ == '__main__':
 
     #Task constants
     dim = env.dim
+    s_dim = a_dim = dim
     a_max = env.max_action
     action_volume = (2*a_max)**2  #|A|
     R = np.asscalar(np.dot([env.max_pos]*dim,np.dot(env.Q,[env.max_pos]*dim))
@@ -182,28 +183,15 @@ if __name__ == '__main__':
     if len(sys.argv) > 7:
         N_maxtot = int(sys.argv[7])  
  
-    #Trajectory (to run in parallel)
-    def trajectory(n,initial,noises,traces):
-        s = env.reset(initial)
-        for l in range(H): 
-            a = np.clip(gauss_policy(s,theta,sigma,noises[l]),-env.max_action, env.max_action)
-            traces[n,l,0:m] = np.ravel(gauss_score(s,a,theta.reshape((dim,dim)),sigma))
-            s,r,_,_ = env.step(a)
-            traces[n,l,m] = gamma**l*r  
 
 
     #LEARNING
-
     if verbose>0:
         print 'theta*:', theta_star, 'J*:', J_star, '\n' 
     if record:
         fp.write("{} {} {} {} {} {}\n\n".format(N_min, N_max, delta, grad_estimator.__name__,stat_bound.__name__,N_maxtot))
-
-    path = tempfile.mkdtemp()
-    traces_path = os.path.join(path,'traces.mmap')
-    n_cores = multiprocessing.cpu_count() 
     
-    N = N_min
+    N = 100#N_min
     N_tot = N
     J_est = J = -np.inf
     rng_emp = grad_range(R,M_phi,sigma,gamma,a_max,action_volume)
@@ -216,19 +204,31 @@ if __name__ == '__main__':
             start = time.time()
             print 'iteration:', iteration, 'N:', N, 'theta:', theta  
             
-        #Run N trajectories in parallel  
-        initials = np.random.uniform(-env.max_pos,env.max_pos,(N,dim))
-        noises = np.random.normal(0,1,(N,H,2))
-        traces = np.memmap(traces_path,dtype=float,shape=(N,H,m+1),mode='w+')  
-        Parallel(n_jobs=n_cores)(delayed(trajectory)(n,initials[n],noises[n],traces) for n in xrange(N))
-        scores = traces[:,:,0:m]
-        disc_rewards = traces[:,:,m]
+        #Run N trajectories 
+        print 'COLLECTING SAMPLES'
+        traces = np.zeros((N,H,dim+a_dim+1))
+        for n in range(N):
+            s = env.reset()
+            for l in range(H):
+                traces[n,l,0:dim] = s 
+                a = np.clip(gauss_policy(s,theta,sigma,np.random.normal(0,1,dim)),-env.max_action, env.max_action)
+                traces[n,l,dim:dim+a_dim] = a 
+                s,r,_,_ = env.step(a)
+                traces[n,l,dim+a_dim] = r  
+      
+        print 'COMPUTING GRADIENTS'
+        scores = np.zeros((N,H,m))
+        disc_rewards = np.zeros((N,H))
+        for n in range(N):
+            for l in range(H):
+                scores[n,l] = gauss_score(traces[n,l,0:dim],traces[n,l,dim:dim+a_dim],theta,sigma)
+                disc_rewards[n,l] = gamma**l*traces[n,l,dim+a_dim]
 
         #Performance estimation
         J_est0 = J_est
         J0 = J
         J_est = np.mean(np.sum(disc_rewards,1))
-        J = env.computeJ(theta,sigma,1000000)
+        J = env.computeJ(theta,sigma,1000)
         deltaJ_est = J_est - J_est0
         deltaJ = J - J0
         if iteration>1:
@@ -239,7 +239,6 @@ if __name__ == '__main__':
         if verbose>0:   
             print 'J:', J, 'J~:', J_est
             print 'deltaJ:', deltaJ, 'deltaJ~:', deltaJ_est
-        del traces
         
         #Gradient estimation 
         theta = np.ravel(theta)

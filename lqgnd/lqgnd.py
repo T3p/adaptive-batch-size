@@ -223,6 +223,9 @@ class LQGND(gym.Env):
         if np.size(K)==1:
             return np.asscalar(-self.max_pos**2*P/3 - W)
 
+        if np.shape(K)==(2,2):
+            return np.asscalar(-4*self.max_pos**2*(1./3*np.trace(P)*self.max_pos**2 + W))
+
         J = 0.0
         for i in range(n_random_x0):
             self.reset()

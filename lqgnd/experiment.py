@@ -5,7 +5,7 @@ import os
 max_N = 30000000
 N_min = 100
 N_max = 100000
-for i in range(1):
+for i in range(5):
     for delta in [0.95]:
         for estimator in [1]:
             for bound in [5]:
