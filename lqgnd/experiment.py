@@ -11,9 +11,9 @@ for i in range(5):
             for bound in [5]:
                 if estimator+bound==1:
                     continue
-                filename = "results/adabatch_est{}_bound{}__delta{}_sample{}".format(estimator,bound,delta,i+1)
+                filename = "results/polgrad_est{}_bound{}__delta{}_sample{}".format(estimator,bound,delta,i+1)
                 filename = filename.replace(".","_")
                 filename = filename + ".out"
 
-                subprocess.call("python lqgnd_adabatch.py {} {} {} {} {} {} {}".format(N_min,N_max,delta,estimator,bound,filename,max_N), shell=True)
+                subprocess.call("python lqgnd_polgrad.py {} {} {} {} {} {} {}".format(N_min,N_max,delta,estimator,bound,filename,max_N), shell=True)
 
