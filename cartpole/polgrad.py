@@ -212,7 +212,8 @@ if __name__ == '__main__':
 
         #Update
         theta+=np.array(grad_Js)*alpha
-        
+        np.save('theta_star',arr=theta)        
+
         #Log
         if verbose>0:
             print 'time:', time.time() - start, '\n'
