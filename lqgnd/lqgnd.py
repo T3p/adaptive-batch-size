@@ -21,7 +21,6 @@ References
 
 """
 
-
 #classic_control
 from gym.envs.registration import register
 register(
@@ -49,6 +48,7 @@ class LQGND(gym.Env):
         self.B = np.eye(dim)
         self.Q = 0.5*np.eye(dim)
         self.R = 0.5*np.eye(dim)
+        #self.R = 0.5*np.array([[1,1],[1,1]])
 
         # gym attributes
         self.viewer = None

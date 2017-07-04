@@ -19,15 +19,6 @@ import tempfile, os
 import time
 
 
-#REINFORCE gradient estimator (w/o final averaging)
-def reinforce(scores,disc_rewards):
-    q = np.sum(disc_rewards,1)
-    sum_of_scores = np.sum(scores,1)
-    #optimal baseline:
-    b = np.mean(sum_of_scores**2*q)/np.mean(sum_of_scores**2)
-    #gradient estimates:
-    return np.mean(sum_of_scores*(q-b))
-
 #GPOMDP gradient estimator
 def gpomdp(scores,disc_rewards):
     N = scores.shape[0]
@@ -43,6 +34,26 @@ def gpomdp(scores,disc_rewards):
                         den
     #gradient estimate:
     return np.mean(sum(cumulative_scores[:,i]*(disc_rewards[:,i] - b[i]) for i in range(0,H)))
+
+def sample_bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
+    rng = sample_rng
+    d = math.sqrt(2*math.log(3.0/delta)*sample_var)
+    f = 3*rng*math.log(3.0/delta)
+    N_0 = min(N_max,max(N_min,int(((d + math.sqrt(d**2 + 4*f*infgrad)) \
+            /(2*infgrad))**2) + 1))
+    print 'N_0:', N_0
+    ups_max = -np.inf
+    eps_star = np.inf
+    N_star = N_0
+    for n in range(N_0,N_max):
+        ups,eps = evaluate_N(n,d,f,c,infgrad)
+        if ups>ups_max:
+            ups_max = ups
+            eps_star = eps
+            N_star = n
+        else:
+            break
+    return d,f,eps_star,N_star
 
 
 if __name__ == '__main__': 
@@ -100,17 +111,17 @@ if __name__ == '__main__':
         action_volume = reduce(lambda x,y: x*y,action_volume)
     gamma = 0.99
     sigma = 0.5 
-    alpha = 1e-4
+    alpha = 1e-7
     H = 200
-    N = 100
+    N = 12
 
 
     #Tweak task
-    #env.cost*=2
-    env.m*=1.1
+    #env.cost*=1.
+    env.m*=1.05
 
     #Policy (Multi-layer perceptron)
-    mu_hidden = [400,300,50]
+    mu_hidden = [400,300,7]
     mu_activ = [tf.nn.relu,tf.nn.relu,tf.nn.tanh]
     state_var = tf.placeholder(tf.float32, [1,s_dim])
     action_var = tf.placeholder(tf.float32, [1,a_dim])
@@ -118,35 +129,11 @@ if __name__ == '__main__':
                 min_std = sigma,fixed_std=True)(state_var,action_var)
     M_phi = 1
 
-    #Trajectory (to run in parallel)
-    def trajectory(n,traces):
+    def show(s_0,seed):
+        np.random.seed(seed)
+        env.seed(seed)
         s = feat(env.reset())
-        #env.state = np.array([np.pi,0]) + np.array([np.random.normal(0,0.1),0])
-        #s = env._get_obs()
-        ret = 0
-
-        for l in range(H): 
-            s_feed = s.reshape((1,s_dim))
-            mu = pol.get_mu(s_feed) 
-            a = np.clip(mu + np.dot(sigma,np.random.normal(0,1,a_dim)),env.action_space.low, env.action_space.high)
-            a_feed = a.reshape((1,a_dim))
-            score = pol.outer_log_gradients(s_feed,a_feed)
-            traces[n,l,0:m] = score
-            obs,r,_,_ = env.step(a)
-            s = feat(obs)
-            traces[n,l,m] = r
-            ret+=gamma**l*r
-            if render:
-                env.render()
-      
-        return ret
-
-
-    def show():
-        np.random.seed(42)
-        env.seed(42)
-        s = feat(env.reset())
-        env.state = np.array([np.pi,0])
+        env.state = s_0 #pi,0
         s = env._get_obs()
         ret = 0
         for l in range(H):
@@ -174,7 +161,8 @@ if __name__ == '__main__':
         sess.run(tf.global_variables_initializer())
         theta = pol.get_outer_weights()
         m = len(theta)
-        pol.load_weights('weights/dpg_f50_sigma0.5_it100.npy')  
+        pol.load_weights('weights/dpg_f7_sigma0_it1000.npy')  
+        #pol.update_outer_layer(-np.array(pol.get_outer_weights())+np.random.normal(0,0.14,m))
    
         R = sample_rng = 0 
         N_tot = N
@@ -190,23 +178,36 @@ if __name__ == '__main__':
                 theta = pol.get_outer_weights()
                 print 'iteration:', iteration, 'N:', N, 'theta:', max(theta)  
                 
-            #Show current performance
-            J_test = show() if perform else 0
 
-            #Run N trajectories in parallel  
+            #Run N trajectories 
             print 'COLLECTING SAMPLES'
-            traces = np.memmap(traces_path,dtype=float,shape=(N,H,m+1),mode='w+')  
-            rets = [trajectory(n,traces) for n in xrange(N)]
-            scores = traces[:,:,0:m]
-            rewards = traces[:,:,m]
-            R = max(R,np.max(abs(rewards)))
+            traces = np.zeros((N,H,s_dim+a_dim+1))
+            for n in range(N):
+                s = feat(env.reset())
+
+                for l in range(H): 
+                    s_feed = s.reshape((1,s_dim))
+                    traces[n,l,0:s_dim] = np.ravel(s)
+                    mu = pol.get_mu(s_feed) 
+                    a = np.clip(mu + np.dot(sigma,np.random.normal(0,1,a_dim)),env.action_space.low, env.action_space.high)
+                    traces[n,l,s_dim:s_dim+a_dim] = a
+                    obs,r,_,_ = env.step(a)
+                    traces[n,l,s_dim+a_dim] = r
+                    s = feat(obs)  
+            
+            scores = np.zeros((N,H,m))
             disc_rewards = np.zeros((N,H))
             for n in range(N):
                 for l in range(H):
-                    disc_rewards[n,l] = rewards[n,l]*sigma**l
+                    scores[n,l] = pol.outer_log_gradients(traces[n,l,0:s_dim].reshape((1,s_dim)),traces[n,l,s_dim:s_dim+a_dim].reshape((1,a_dim)))
+                    disc_rewards[n,l] = gamma**l*traces[n,l,s_dim+a_dim]
 
-            #Performance estimation
+           #Performance estimation
+            print 'TESTING'
             J0 = J
+            initials = np.linspace(0,2*np.pi,12)
+            seed = 42
+            rets = [show(np.array([ang,0]),seed) for ang in initials]
             J = np.mean(rets)
             
             if iteration>it_0+1:
@@ -232,7 +233,7 @@ if __name__ == '__main__':
                    
             #Record
             if record:
-                fp.write("{} {} {} {}\n".format(iteration,theta,J,J_test))         
+                fp.write("{} {} {}\n".format(iteration,theta,J))         
 
             #Update
             k = np.argmax(abs(np.array(grad_Js)))

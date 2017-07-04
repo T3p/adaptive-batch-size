@@ -33,9 +33,9 @@ GAMMA = 0.99
 # Soft target update param
 TAU = 0.001
 #Gauss variance
-SIGMA = 0.5
+SIGMA = 0
 #File for saving actor network params
-W_FILENAME = 'weights/dpg_f50_sigma{}{}'.format(SIGMA,'{}')
+W_FILENAME = 'weights/dpg_f7_sigma{}{}'.format(SIGMA,'{}')
 
 # ===========================
 #   Utility Parameters
@@ -126,9 +126,9 @@ class ActorNetwork(object):
         # Final layer weights are init to Uniform[-3e-3, 3e-3]
         w_init = tflearn.initializations.uniform(minval=-0.003, maxval=0.003)
         net = tflearn.fully_connected(
-            net, 50, activation='tanh', weights_init=w_init)
+            net, 7, activation='tanh', weights_init=w_init)
         # Scale output to -action_bound to action_bound
-        w_init = tflearn.initializations.uniform(minval=-0.01*self.action_bound,maxval=0.02*self.action_bound)
+        w_init = tflearn.initializations.uniform(minval=-0.14*self.action_bound,maxval=0.14*self.action_bound)
         out = scaled_out = tflearn.fully_connected(net,self.a_dim,activation=None,weights_init=w_init)
         #scaled_out = tf.multiply(out, self.action_bound)
         return inputs, out, scaled_out
@@ -305,7 +305,7 @@ def train(sess, env, actor, critic):
                 env.render()
 
             # Added exploration noise
-            a = actor.predict(np.reshape(s, (1, 3))) + np.random.normal(0,SIGMA)#(1. / (1. + i))
+            a = actor.predict(np.reshape(s, (1, 3))) + (1. / (1. + i))#np.random.normal(0,SIGMA)#
 
             s2, r, terminal, info = env.step(a[0])
 
