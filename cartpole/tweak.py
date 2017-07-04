@@ -178,12 +178,12 @@ if __name__ == '__main__':
     stat_bound = bounds[k]
     #Output file
     record = True
-    fp = open('results/tweak.out','w')
+    fp = open('results/long_tweak2_adabatch.out','w')
     #record = len(sys.argv) > 8
     #if record:
         #fp = open(sys.argv[8],'w')
     #Experiment length    
-    N_maxtot = 30000000
+    N_maxtot = 3000000
     #if len(sys.argv) > 9:
         #N_maxtot = int(sys.argv[7])   
     
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     m = len(theta)
 
     #Task tweaking
-    env.length*=1.5
+    env.length*=2.0
 
     #Trajectory (to run in parallel)
     def trajectory(n,seed,noises,traces):
@@ -337,6 +337,7 @@ if __name__ == '__main__':
                 print 'Optimal eps is too high! No guarantees!'
         N = min(N_max,max(N_min,N_star)) 
     
+        print 'Ntot:', N_tot
         #Log
         if verbose>0:
             print 'time:', time.time() - start, '\n'
