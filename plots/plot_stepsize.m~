@@ -1,0 +1,15 @@
+close all
+clear
+clc
+
+figure
+hold on
+
+M = importdata('~/adaptive-batch-size/lqgnd/results/notheta/vector_ex.out',' ',1);
+color = 'b-';
+plot(iteration,M.data(:,3,color);
+
+M = importdata('~/adaptive-batch-size/lqgnd/results/notheta/scalar_ex.out',' ',1);
+color = 'r--';
+plot_scaledData2
+
