@@ -149,7 +149,7 @@ if __name__ == '__main__':
     
     #Initial policy parameter
     m = dim**2
-    theta = np.zeros((dim,dim)) 
+    theta = -0.5*np.eye(dim)#np.zeros((dim,dim)) 
 
     #Optimal policy
     theta_star = env.computeOptimalK() 

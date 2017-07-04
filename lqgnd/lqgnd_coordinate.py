@@ -192,7 +192,7 @@ if __name__ == '__main__':
     if record:
         fp.write("{} {} {} {} {} {}\n\n".format(N_min, N_max, delta, grad_estimator.__name__,stat_bound.__name__,N_maxtot))
     
-    N = 1000#N_min
+    N = 100#N_min
     alpha = 1e-6
     N_tot = N
     J_est = J = -np.inf
@@ -253,11 +253,11 @@ if __name__ == '__main__':
             #sample_vars.append(np.var(grad_samples,ddof=1))
             #sample_rngs.append(max(grad_samples) - min(grad_samples))
 
-        #k = np.argmax(abs(np.array(grad_Js)))
+        k = np.argmax(abs(np.array(grad_Js)))
         #infgrad = abs(grad_Js[k])
         #sample_var = max(sample_vars)
         #sample_rng = max(sample_rngs)
-        #print 'k:', k
+        print 'k:', k
         
         #d,f,eps_star,N_star = stat_bound(R,M_phi,sigma,infgrad,sample_var,c,sample_rng)
            
@@ -272,7 +272,7 @@ if __name__ == '__main__':
             fp.write("{} {} {} {} {} {}\n".format(iteration,N,theta,alpha,J,J_est))         
 
         #Update
-        theta+=np.array(grad_Js)*alpha 
+        theta[k]+= np.array(grad_Js)[k]*alpha 
         theta = np.reshape(theta,(dim,dim))
         
         #Adaptive batch-size (used for next batch)
