@@ -2,6 +2,10 @@ close all
 clear
 clc
 
+h = hgload('cartpole.fig');
+orient(h,'landscape');
+print(gcf, '-dpdf', '~/adaptive-batch-size/plots/pdf/cartpole.pdf','-fillpage');
+
 % h = hgload('stepsize.fig');
 % print(gcf, '-dpdf', '~/adaptive-batch-size/plots/pdf/stepsize.pdf','-fillpage');
 
@@ -27,9 +31,9 @@ clc
 % h = hgload('batchsize_cheb.fig');
 % print(gcf, '-dpdf', '~/adaptive-batch-size/plots/pdf/batchsize_cheb.pdf','-fillpage');
 
-h = hgload('batchsize_cheb.fig');
-orient(h,'landscape');
-print(gcf, '-dpdf', '~/adaptive-batch-size/plots/pdf/batchsize_cheb_landscape.pdf','-fillpage');
+% h = hgload('batchsize_cheb.fig');
+% orient(h,'landscape');
+% print(gcf, '-dpdf', '~/adaptive-batch-size/plots/pdf/batchsize_cheb_landscape.pdf','-fillpage');
 
 % h = hgload('batchsize_hoeff.fig');
 % print(gcf, '-dpdf', '~/adaptive-batch-size/plots/pdf/batchsize_hoeff.pdf','-fillpage');

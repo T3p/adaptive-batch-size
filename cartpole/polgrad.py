@@ -82,7 +82,7 @@ if __name__ == '__main__':
     grad_estimator = estimators[k]
     #Output file
     record = True
-    filename = 'polgrad_N4000_alpha2.out'
+    filename = 'test.out'
     if len(sys.argv) > 6:
         filename = sys.argv[6]
     fp = open(filename,'w')
@@ -212,7 +212,7 @@ if __name__ == '__main__':
 
         #Update
         theta+=np.array(grad_Js)*alpha
-        np.save('theta_star',arr=theta)        
+        #np.save('theta_star',arr=theta)        
 
         #Log
         if verbose>0:

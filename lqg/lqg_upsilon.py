@@ -251,7 +251,8 @@ if __name__ == '__main__':
         #print upsilons
         plt.figure()
         plt.plot(Ns,upsilons,'-r', linewidth=2.0)
-        plt.plot(N_star,upsilon(N_star),'rD',ms=14)
+        N_0 = d**2/infgrad**2       
+
         axes = plt.gca()
         axes.set_xlim([-500,40000])
         axes.set_ylim([-0.001,0.01])
@@ -259,6 +260,18 @@ if __name__ == '__main__':
         plt.xlabel('N')
         plt.ylabel('$\Upsilon_{\delta}$')
         plt.rcParams.update({'font.size': 14})
+          
+        plt.annotate('$N_0$',xy=(N_0,upsilon(N_0)),xytext=(50,20),textcoords='offset points',
+            ha='right',va='bottom',bbox=dict(boxstyle='round,pad=0.5',fc='white',alpha=0.5),
+            arrowprops=dict(arrowstyle='->',connectionstyle='arc3,rad=0'))
+ 
+        plt.annotate('$N^*$',xy=(N_star,upsilon(N_star)),xytext=(50,20),textcoords='offset points',
+            ha='right',va='bottom',bbox=dict(boxstyle='round,pad=0.5',fc='white',alpha=0.5),
+            arrowprops=dict(arrowstyle='->',connectionstyle='arc3,rad=0'))
+ 
+
+        plt.plot(N_star,upsilon(N_star),'rD',ms=14)
+    
         #plt.show() 
         plt.savefig('/home/matteo/thesis/TEXT_template/Images/upsilon.pdf')
            

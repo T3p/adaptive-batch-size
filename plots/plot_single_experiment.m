@@ -2,7 +2,7 @@ close all
 clear
 clc
 
-M = importdata('~/adaptive-batch-size/lqgnd/results/notheta/adabatch_theta0_sample1.out',' ',1);
+M = importdata('~/adaptive-batch-size/lqgnd/results/notheta/polgrad_theta0_N1000_alpha6_sample1.out',' ',1);
 alphas = M.data(:,3);
 M.data(:,3) = [];
 iteration = M.data(:,1);
