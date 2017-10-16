@@ -11,7 +11,7 @@ for i in range(1):
             for bound in [5]:
                 if estimator+bound==1:
                     continue
-                filename = "results/final/adabatch_est{}_bound{}__delta{}_sample{}".format(estimator,bound,delta,i+1)
+                filename = "Xadabatch_est{}_bound{}__delta{}_sample{}".format(estimator,bound,delta,i+1)
                 filename = filename.replace(".","_")
                 filename = filename + ".out"
 

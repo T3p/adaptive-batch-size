@@ -116,12 +116,16 @@ def sample_bernstein(R,M_phi,sigma,infgrad,sample_var,c,sample_rng):
     ups_max = -np.inf
     eps_star = np.inf
     N_star = N_0
-    n_cores = multiprocessing.cpu_count()
-    ups,epss = zip(*Parallel(n_jobs=n_cores)(delayed(evaluate_N)(N,d,f,c,infgrad) for N in xrange(N_0,N_max+1)))
-    N_star = N_0 + np.argmax(ups)
-    eps_star = epss[N_star - N_0]
+    for n in range(N_0,N_max):
+        ups,eps = evaluate_N(n,d,f,c,infgrad)
+        if ups>ups_max:
+            ups_max = ups
+            eps_star = eps
+            N_star = n
+        else:
+            break
     return d,f,eps_star,N_star
-    
+
 
 if __name__ == '__main__':
     env = gym.make('LQG1D-v0')

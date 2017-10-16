@@ -9,5 +9,5 @@ for i in range(1):
             for bound in [5]:
                 if estimator+bound==1:
                     continue
-                subprocess.call("python adabatch.py", shell=True)
+                subprocess.call("polgrad.py", shell=True)
 
