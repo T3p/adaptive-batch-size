@@ -5,13 +5,12 @@ import os
 max_N = 1000000
 N_min = 10000
 N_max = 10000
-for alpha in [0.1, 0.01, 0.001, 0.0001]:
-    for i in range(1):
+
+for alpha in [1e-3, 1e-4, 1e-5, 1e-6]:
+    for N_min in [10000, 1000, 100]:
         for estimator in [1]:
             for bound in [1]:
-                if estimator+bound==1:
-                    continue
-                filename = "results/final/eff_N{}_alpha{}_est{}_bound{}__delta{}_sample{}".format(N_min,alpha,estimator,bound,0.95,i+1)
+                filename = "X_results/fixed_N{}_alpha{}".format(N_min,alpha)
                 filename = filename.replace(".","_")
                 filename = filename + ".out"
 
