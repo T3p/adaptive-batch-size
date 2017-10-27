@@ -29,7 +29,7 @@ def reinforce(features,actions,rewards,gamma,pol,use_baseline=True,average=True)
     q = np.sum(disc_rewards,1)
     
     #Eligibility vector
-    scores = apply_along_axis2(pol.score,2,features,actions)
+    scores = apply_along_axis2(pol.score,2,actions,features)
     sum_of_scores = np.sum(scores,1)
     
     #Optimal baseline
@@ -65,7 +65,7 @@ def gpomdp(features,actions,rewards,gamma,pol,use_baseline=True,average=True):
     disc_rewards = rewards*discounts 
 
     #Eligibility vector    
-    scores = apply_along_axis2(pol.score,2,features,actions)
+    scores = apply_along_axis2(pol.score,2,actions,features)
     cum_scores = np.cumsum(scores,1)
 
     #Optimal baseline:

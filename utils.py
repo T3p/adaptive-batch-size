@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 """Helper functions"""
 
@@ -24,3 +25,11 @@ def inv(x):
     """Generalization of np.linalg.inv including scalars"""
     return 1./x if np.isscalar(x) else np.linalg.inv(x)
 
+def det(x):
+    """Generalization of np.linalg.det including scalars"""
+    return x if np.isscalar(x) else np.linalg.det(x)
+
+def cholesky(x):
+    """Generalization of np.linalg.cholesky including scalars"""
+    return math.sqrt(x) if np.isscalar(x) else np.linalg.cholesky(x)
+    

@@ -1,6 +1,8 @@
 from numpy.random import normal
 import numpy as np
 from utils import *
+import math
+from scipy.linalg import sqrtm
 
 """Policies"""
 
@@ -17,33 +19,57 @@ class GaussPolicy:
 
         cov = np.asmatrix(cov) 
         assert np.array_equal(cov,np.transpose(cov))
-        self.cov = cov
+        self.cov = cov.astype(float)
         d = self.act_dim = np.shape(cov)[0]
+        self.sigma = math.sqrt(det(cov))
         
         assert np.size(theta)%d==0
         self.theta = theta
-        m = np.size(theta)/d
-        self.theta_mat = np.reshape(theta,(d,m)) 
+        self.feat_dim = m = np.size(theta)/d
+        self.theta_mat = np.reshape(theta,(d,m)).astype(float)
     
    
-    def act(self,phi,noise=None):
+    def act(self,phi,noise=None,deterministic=False):
         """Policy stochastic mapping
 
         Parameters:
         phi -- feature vector of state s
         noise (optional) -- gaussian noise realization
 
-        Returns: action a sampled from pi(a|s)
+        Returns: action a sampled from pi(a|s), or the expected value if deterministic==True
         """
 
+        #Expected value
+        mu = np.dot(self.theta_mat,phi)
+
+        if deterministic:
+            return mu
+
+        #Gaussian noise
         if noise is None:
             noise = normal(0,1,self.act_dim)
 
-        a = np.dot(self.theta_mat,phi) + np.dot(self.cov,noise)
+        a = mu + np.dot(cholesky(self.cov),noise)
         return np.asscalar(a) if np.size(a)==1 else np.ravel(a)
 
+    def prob(self,a,phi):
+        """Policy density function
+        
+        Parameters:
+        phi -- feature vector of state s
+        a -- action to evaluate
 
-    def score(self,phi,a):
+        Returns: probability density pi(a|s)
+        """
+ 
+        phi = np.asmatrix(phi).T
+        a = np.asmatrix(a).T
+
+        mu = np.dot(self.theta_mat,phi)
+        normalization = 1.0/math.sqrt((2*math.pi)**self.act_dim*det(self.cov))
+        return normalization*math.exp(-0.5*np.dot((a-mu).T,np.dot(inv(self.cov),(a-mu))))
+
+    def score(self,a,phi):
         """Score function
         
         Parameters:
@@ -62,4 +88,15 @@ class GaussPolicy:
         
         return np.asscalar(score) if np.size(score)==1 else np.ravel(score)
 
+    def penaltyCoeff(self,R,M,gamma,volume):
+        """Penalty coefficient for performance improvement bounds
 
+        Parameters:
+        R -- maximum absolute-value reward
+        M -- upper bound on all state features
+        gamma -- discount factor
+        volume -- volume of the action space
+        """
+        return float(R*M**2)/((1-gamma)**2*self.sigma**2)* \
+            (float(volume)/math.sqrt(2*math.pi*self.sigma**2) + \
+                float(gamma)/(2*(1-gamma)))
