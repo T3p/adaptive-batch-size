@@ -32,4 +32,3 @@ def det(x):
 def cholesky(x):
     """Generalization of np.linalg.cholesky including scalars"""
     return math.sqrt(x) if np.isscalar(x) else np.linalg.cholesky(x)
-    
