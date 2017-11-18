@@ -1,6 +1,5 @@
 from numpy.random import normal
 import numpy as np
-from utils import *
 import math
 from scipy.linalg import sqrtm
 
@@ -21,13 +20,17 @@ class GaussPolicy:
         assert np.array_equal(cov,np.transpose(cov))
         self.cov = cov.astype(float)
         d = self.act_dim = np.shape(cov)[0]
-        self.sigma = math.sqrt(det(cov))
+        self.sigma = math.sqrt(np.linalg.det(cov))
         
+        theta = np.atleast_1d(theta)
+        self.param_len = theta.size
         assert np.size(theta)%d==0
-        self.theta = theta
         self.feat_dim = m = np.size(theta)/d
         self.theta_mat = np.reshape(theta,(d,m)).astype(float)
     
+    def get_theta(self):
+        """Returns: policy parameter as a vector representing parameter matrix in lexographical order"""
+        return np.ravel(self.theta_mat)
    
     def act(self,phi,noise=None,deterministic=False):
         """Policy stochastic mapping
@@ -49,7 +52,7 @@ class GaussPolicy:
         if noise is None:
             noise = normal(0,1,self.act_dim)
 
-        a = mu + np.dot(cholesky(self.cov),noise)
+        a = mu + np.dot(np.linalg.cholesky(self.cov),noise)
         return np.asscalar(a) if np.size(a)==1 else np.ravel(a)
 
     def prob(self,a,phi):
@@ -66,8 +69,8 @@ class GaussPolicy:
         a = np.asmatrix(a).T
 
         mu = np.dot(self.theta_mat,phi)
-        normalization = 1.0/math.sqrt((2*math.pi)**self.act_dim*det(self.cov))
-        return normalization*math.exp(-0.5*np.dot((a-mu).T,np.dot(inv(self.cov),(a-mu))))
+        normalization = 1.0/math.sqrt((2*math.pi)**self.act_dim*np.linalg.det(self.cov))
+        return normalization*math.exp(-0.5*np.dot((a-mu).T,np.dot(np.linalg.inv(self.cov),(a-mu))))
 
     def score(self,a,phi):
         """Score function
@@ -83,7 +86,7 @@ class GaussPolicy:
         phi = np.asmatrix(phi).T
         a = np.asmatrix(a).T
         
-        score = np.dot(inv(self.cov), \
+        score = np.dot(np.linalg.inv(self.cov), \
                     np.dot((a - np.dot(self.theta_mat,phi)),np.transpose(phi)))                
         
         return np.asscalar(score) if np.size(score)==1 else np.ravel(score)
@@ -100,3 +103,13 @@ class GaussPolicy:
         return float(R*M**2)/((1-gamma)**2*self.sigma**2)* \
             (float(volume)/math.sqrt(2*math.pi*self.sigma**2) + \
                 float(gamma)/(2*(1-gamma)))
+
+    def update(self,delta_theta):
+        """Updates the policy parameter
+
+        Parameters:
+        delta_theta -- vector that is summed to the policy parameter
+        """
+        assert np.size(delta_theta)==self.param_len
+        theta_new = self.get_theta() + np.atleast_1d(delta_theta)
+        self.theta_mat = np.reshape(theta_new,(self.act_dim,self.feat_dim)).astype(float) 

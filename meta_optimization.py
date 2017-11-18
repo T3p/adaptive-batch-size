@@ -31,136 +31,214 @@ class TaskProp:
 
 
 class GradStats:
-    """Statistics about the last gradient estimate"""
+    """Statistics about a gradient estimate"""
   
-    def __init__(self,max_grad,sample_var=None,sample_range=None):
+    def __init__(self,grad_samples):
         """Parameters:
-            max_grad -- infinity norm of the gradient estimate
-            sample_var -- sample variance of the gradient estimator
-            sample_range -- estimated range of the gradient estimator
+            grad_samples: gradient estimates
         """
-        self.max_grad = max_grad
-        self.sample_var = sample_var 
-        self.sample_range = sample_range        
+        self.grad = np.mean(grad_samples,0)
+        self.max_grad = np.max(abs(self.grad))
+        self.k_max = np.argmax(abs(self.grad))
+        self.grad_samples = grad_samples[:,self.k_max] if len(grad_samples.shape)>1 else grad_samples
+        self.sample_range = self.sample_var = None
 
+    def get_estimate(self):
+        return self.grad
+
+    def get_max(self):
+        return self.max_grad
+
+    def get_amax(self):
+        return self.k_max
+
+    def get_var(self):
+        if self.sample_var==None:
+            self.sample_var = np.var(self.grad_samples,ddof=1)
+        return self.sample_var
+
+    def get_range(self):
+        if self.sample_range==None:
+            self.sample_range = max(self.grad_samples) - min(self.grad_samples)
+        return self.sample_range
+        
 
 class OptConstr:
     """Constraints on the meta-optimization process"""
 
-    def __init__(self,N_min,N_max):
+    def __init__(self,delta=0.95,N_min=2,N_max=999999):
         """Parameters:
+            delta : maximum allowed worsening probability
             N_min : min allowed batch size
             N_max : max allowed batch size
         """
+
+        self.delta = delta
         self.N_min = N_min
         self.N_max = N_max
 
-def alphaStar(pol,t):
+#Default constraints
+default_constr = OptConstr()
+
+
+def alphaStar(pol,tp):
     """Optimal step size for the adaBatch algorithm when the corresponding optimal
         batch size is used
 
         Parameters:
         pol -- policy in use
-        t -- TaskProp object containing the (true or last estimated) properties of the task
-    """
+        tp -- TaskProp object containing the (true or last estimated) properties of the task
+   """
 
-    c = pol.penaltyCoeff(t.R,t.M,t.gamma,t.volume)
+    c = pol.penaltyCoeff(tp.R,tp.M,tp.gamma,tp.volume)
     return (13-3*math.sqrt(17))/(4*c)
 
-def alphaPost(pol,t,max_grad,eps):
+def alphaPost(pol,tp,max_grad,eps):
     """Optimal step size given an upper bound of the estimaton error,
-        whatever batch size is actually used
+        depending on the batch size that is actually used
         
         Parameters:
         pol -- policy in use
-        t -- TaskProp object containing the (true or last estimated) properties of the task
-        s -- GradStats object containing statistics on the last gradient estimate
+        tp -- TaskProp object containing the (true or last estimated) properties of the task
+        gs -- GradStats object containing statistics on the last gradient estimate
     """
-    c = pol.penaltyCoeff(t.R,t.M,t.gamma,t.volume)
+    c = pol.penaltyCoeff(tp.R,tp.M,tp.gamma,tp.volume)
     return (max_grad - eps)**2/(2*c*(max_grad + eps)**2)
 
-def __gradRange(pol,t):
-    #Upper bound on the range of the gradient estimate
+def gradRange(pol,tp):
+    """Range of the gradient estimate
+        
+        Parameters:
+        pol -- policy in use
+        tp -- TaskProp object containing the (true or last estimated) properties of the task
+    """
+    Q_sup = float(tp.volume*tp.R)/(1-tp.gamma)
+    return float(tp.M*tp.diameter*Q_sup)/pol.sigma**2
 
-    Q_sup = float(t.volume*t.R)/(1-t.gamma)
-    return float(t.M*t.diameter*Q_sup)/pol.sigma**2
+def estError(d,f,N):
+    """Generic estimation error bound
 
-def __closedOpt(d,max_grad):
-    #Generic closed form optimization for N and corresponding estimation error
-
-    eps_star = 0.25*(math.sqrt(17) - 3)*max_grad
-    N_star = int(math.ceil(float(d**2)/eps_star**2))
-    return eps_star,N_star
-
-
-def chebyshev(delta,pol,s,t,con=None,estimator=gpomdp,samp=False):
-    if estimator==reinforce:
-        d =  math.sqrt((t.R**2*t.M**2*t.H*(1-t.gamma**t.H)**2)/ \
-                (pol.sigma**2*(1-t.gamma)**2*delta))
-    elif estimator==gpomdp:
-        d = math.sqrt((t.R**2*t.M**2)/(delta*pol.sigma**2*(1-t.gamma)**2) * \
-                       ((1-t.gamma**(2*t.H))/(1-t.gamma**2)+ t.H*t.gamma**(2*t.H)  - \
-                            2 * t.gamma**t.H  * (1-t.gamma**t.H)/(1-t.gamma)))
-    else:
-        assert False
-
-    return (d,0) + __closedOpt(d,s.max_grad)
-
-def hoeffding(delta,pol,s,t,con=None,estimator=gpomdp,samp=False):
-    if samp:
-        rng = s.sample_range
-    else:
-        rng = __gradRange(pol,t)
-
-    d = rng*math.sqrt(math.log(2./delta)/2)
-    return (d,0) + __closedOpt(d,s.max_grad)
-
-
-def __evaluateN(N,d,f,c,max_grad):
-    #Objective function Upsilon for batch size N
-    eps = float(d)/math.sqrt(N) + float(f)/N
-    upsilon = (max_grad - eps)**4/ \
-                (4*c*(max_grad + eps)**2*N)
-    return upsilon,eps
-
-def bernstein(delta,pol,s,t,con,estimator=gpomdp,samp=False):
-    if samp:
-        rng = s.sample_range
-    else:
-        rng = __gradRange(pol,t)
-
-    c = pol.penaltyCoeff(t.R,t.M,t.gamma,t.volume)
-    d = math.sqrt(2*math.log(3.0/delta)*s.sample_var)
-    f = 3*rng*math.log(3.0/delta)
-
-    N_0 = min(con.N_max,max(con.N_min,int(((d + math.sqrt(d**2 + 4*f*s.max_grad)) \
-            /(2*s.max_grad))**2) + 1))
-    ups_max = -np.inf
-    eps_star = np.inf
-    N_star = N_0
-    for n in range(N_0,con.N_max):
-        ups,eps = __evaluateN(n,d,f,c,s.max_grad)
-        if ups>ups_max:
-            ups_max = ups
-            eps_star = eps
-            N_star = n
-        else:
-            break
-
-    return d,f,eps_star,N_star
-
-
-def __estError(d,f,N):
+        Parameters:
+        d -- 1/sqrt(N) coefficient
+        f -- 1/N coefficient
+        N -- batch size 
+    """
     return float(d)/math.sqrt(N) + float(f)/N
 
-def metaOptimize(delta,pol,s,t,con,bound,N_pre,estimator=gpomdp,samp=False):
-    
-    d,f,eps_star,N_star = bound(delta,pol,s,t,con,estimator,samp)
-    actual_eps = __estError(d,f,N_pre)
-    
-    alpha = alphaPost(pol,t,s.max_grad,actual_eps)
-    N = min(con.N_max,max(con.N_min,N_star))
-    unsafe = eps_star>=s.max_grad
 
-    return alpha,N,unsafe
-    
+class metaSelector:
+    def __init__(self,alpha,N):
+        self.alpha = alpha
+        self.N = N
+
+    def select(self,pol,gs,tp,N_pre):
+        return self.alpha,self.N,False
+
+
+class metaOptimizer(metaSelector):
+    """Tool to compute the optimal meta-parameters for a policy gradient problem"""
+
+    def __init__(self,bound_name='bernstein',constr=default_constr,estimator=gpomdp,samp=True):
+
+        
+        bounds = {'chebyshev': self.__chebyshev, 'hoeffding': self.__hoeffding, 'bernstein': self.__bernstein}
+
+        self.bound = bounds[bound_name]
+        self.constr = constr
+        self.estimator = estimator
+        self.samp = samp
+
+    def select(self,pol,gs,tp,N_pre):
+        """Compute optimal step size and batch size
+
+            Parameters:
+            pol -- policy in use
+            gs -- GradStats object containing statistics about last gradient estimate
+            tp -- TaskProp object containing the (true or last estimated) properties of the task
+            N_pre -- batch size that was actually used to compute the last gradient estimate
+            
+            Returns:
+            alpha -- the optimal non-scalar step size
+            N -- the optimal batch size
+            unsafe -- true iff no improvement can be guaranteed at all
+        """
+        d,f,eps_star,N_star = self.bound(pol,gs,tp)
+        actual_eps = estError(d,f,N_pre)
+        
+        alpha_k = alphaPost(pol,tp,gs.get_max(),actual_eps)
+        N = min(self.constr.N_max,max(self.constr.N_min,N_star))
+        safe = eps_star<gs.get_max()
+
+        alpha = np.zeros(pol.param_len)
+        alpha[gs.get_amax()] = alpha_k
+
+        return alpha,N,safe 
+
+    def __closedOpt(self,d,max_grad):
+        #Generic closed form optimization for N and corresponding estimation error
+
+        eps_star = 0.25*(math.sqrt(17) - 3)*max_grad
+        N_star = int(math.ceil(float(d**2)/eps_star**2))
+        return eps_star,N_star
+
+
+    def __chebyshev(self,pol,gs,tp):
+        #Batch size optimizer using Chebyshev's bound
+        if self.estimator==reinforce:
+            d =  math.sqrt((tp.R**2*tp.M**2*tp.H*(1-tp.gamma**tp.H)**2)/ \
+                    (pol.sigma**2*(1-tp.gamma)**2*self.constr.delta))
+        elif self.estimator==gpomdp:
+            d = math.sqrt((tp.R**2*tp.M**2)/(self.constr.delta*pol.sigma**2*(1-tp.gamma)**2) * \
+                           ((1-tp.gamma**(2*tp.H))/(1-tp.gamma**2)+ tp.H*tp.gamma**(2*tp.H)  - \
+                                2 * tp.gamma**tp.H  * (1-tp.gamma**tp.H)/(1-tp.gamma)))
+        else:
+            assert False
+
+        return (d,0) + self.__closedOpt(d,gs.get_max())
+
+    def __hoeffding(self,pol,gs,tp):
+        #Batch size optimizer using Hoeffding's bound
+        if self.samp:
+            rng = gs.get_range()
+        else:
+            rng = gradRange(pol,tp)
+
+        d = rng*math.sqrt(math.log(2./self.constr.delta)/2)
+        return (d,0) + self.__closedOpt(d,gs.get_max())
+
+
+    def __evaluateN(self,N,d,f,c,max_grad):
+        #Objective function Upsilon for batch size N
+        eps = float(d)/math.sqrt(N) + float(f)/N
+        upsilon = (max_grad - eps)**4/ \
+                    (4*c*(max_grad + eps)**2*N)
+        return upsilon,eps
+
+    def __bernstein(self,pol,gs,tp):
+        #Batch size optimizer using an empirical Bernstein's bound (Mnih et al., 2008)
+        if self.samp:
+            rng = gs.get_range()
+        else:
+            rng = gradRange(pol,tp)
+
+        c = pol.penaltyCoeff(tp.R,tp.M,tp.gamma,tp.volume)
+        d = math.sqrt(2*math.log(3.0/self.constr.delta)*gs.get_var())
+        f = 3*rng*math.log(3.0/self.constr.delta)
+
+        N_0 = min(self.constr.N_max,max(self.constr.N_min,int(((d + math.sqrt(d**2 + 4*f*gs.get_max())) \
+                /(2*gs.get_max()))**2) + 1))
+        ups_max = -np.inf
+        eps_star = np.inf
+        N_star = N_0
+        for n in range(N_0,self.constr.N_max):
+            ups,eps = self.__evaluateN(n,d,f,c,gs.get_max())
+            if ups>ups_max:
+                ups_max = ups
+                eps_star = eps
+                N_star = n
+            else:
+                break
+
+        return d,f,eps_star,N_star
+
+
