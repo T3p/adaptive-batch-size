@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import adabatch
+import exp_lqg1d
 
 from gradient_estimation import *
 from policies import GaussPolicy
@@ -13,8 +14,10 @@ s = np.array([[0,1,1,0],[0,0,1,1]])
 a = np.array([[1,0,1,0],[0,1,0,0]])
 r = np.array([[0,1,1,0],[0,0,1,1]])
 pol = GaussPolicy(0,1)
-assert reinforce(s,a,r,0.5,pol)==0
-assert gpomdp(s,a,r,0.5,pol)==0
+est1 = Estimator('reinforce')
+est2 = Estimator('gpomdp')
+assert est1.estimate(s,a,r,0.5,pol)==0
+assert est2.estimate(s,a,r,0.5,pol)==0
 assert performance(r)==2
 assert performance(r,0.5)==0.5625
 
@@ -40,8 +43,8 @@ assert pol.param_len==4
 s = np.array([[[0,0],[1,0]],[[0,0],[0,1]]])
 a = np.array([[[1,0],[1,1]],[[0,1],[1,1]]])
 r = np.array([[0,1],[0,1]])
-assert reinforce(s,a,r,0.9,pol).all()==0
-assert gpomdp(s,a,r,0.9,pol).all()==0
+assert est1.estimate(s,a,r,0.9,pol).all()==0
+assert est2.estimate(s,a,r,0.9,pol).all()==0
 
 
 
@@ -70,12 +73,12 @@ assert gs.get_estimate()==10
 assert gs.get_range()==100
 assert gs.get_var()==2500
 
-meta_optimizers = [metaOptimizer('chebyshev',con,estimator=reinforce), 
-                    metaOptimizer('chebyshev',con),
-                    metaOptimizer('hoeffding',con,samp=False),
-                    metaOptimizer('hoeffding',con),
-                    metaOptimizer('bernstein',con,samp=False),
-                    metaOptimizer('bernstein',con)]
+meta_optimizers = [MetaOptimizer('chebyshev',con,estimator='reinforce'), 
+                    MetaOptimizer('chebyshev',con),
+                    MetaOptimizer('hoeffding',con,samp=False),
+                    MetaOptimizer('hoeffding',con),
+                    MetaOptimizer('bernstein',con,samp=False),
+                    MetaOptimizer('bernstein',con)]
 for mo in meta_optimizers:
     print mo.select(pol,gs,tp,N_pre=300)
 

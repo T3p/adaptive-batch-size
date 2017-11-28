@@ -1,6 +1,6 @@
 import math
 from utils import *
-from gradient_estimation import reinforce,gpomdp
+from gradient_estimation import Estimator
 
 class TaskProp:
     """Properties of the RL task, true or estimated from experience"""
@@ -28,6 +28,7 @@ class TaskProp:
         self.min_action = min_action
         self.max_action = max_action
         self.volume = volume
+        self.diameter = diameter
 
 
 class GradStats:
@@ -66,16 +67,18 @@ class GradStats:
 class OptConstr:
     """Constraints on the meta-optimization process"""
 
-    def __init__(self,delta=0.95,N_min=2,N_max=999999):
+    def __init__(self,delta=0.95,N_min=2,N_max=999999,N_tot=30000000):
         """Parameters:
             delta : maximum allowed worsening probability
             N_min : min allowed batch size
             N_max : max allowed batch size
+            N_tot : total number of possible trajectories
         """
 
         self.delta = delta
         self.N_min = N_min
         self.N_max = N_max
+        self.N_tot = N_tot
 
 #Default constraints
 default_constr = OptConstr()
@@ -135,10 +138,10 @@ class metaSelector:
         return self.alpha,self.N,False
 
 
-class metaOptimizer(metaSelector):
+class MetaOptimizer(metaSelector):
     """Tool to compute the optimal meta-parameters for a policy gradient problem"""
 
-    def __init__(self,bound_name='bernstein',constr=default_constr,estimator=gpomdp,samp=True):
+    def __init__(self,bound_name='bernstein',constr=default_constr,estimator='gpomdp',samp=True):
 
         
         bounds = {'chebyshev': self.__chebyshev, 'hoeffding': self.__hoeffding, 'bernstein': self.__bernstein}
@@ -184,10 +187,10 @@ class metaOptimizer(metaSelector):
 
     def __chebyshev(self,pol,gs,tp):
         #Batch size optimizer using Chebyshev's bound
-        if self.estimator==reinforce:
+        if self.estimator=='reinforce':
             d =  math.sqrt((tp.R**2*tp.M**2*tp.H*(1-tp.gamma**tp.H)**2)/ \
                     (pol.sigma**2*(1-tp.gamma)**2*self.constr.delta))
-        elif self.estimator==gpomdp:
+        elif self.estimator=='gpomdp':
             d = math.sqrt((tp.R**2*tp.M**2)/(self.constr.delta*pol.sigma**2*(1-tp.gamma)**2) * \
                            ((1-tp.gamma**(2*tp.H))/(1-tp.gamma**2)+ tp.H*tp.gamma**(2*tp.H)  - \
                                 2 * tp.gamma**tp.H  * (1-tp.gamma**tp.H)/(1-tp.gamma)))

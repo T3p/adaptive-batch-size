@@ -19,3 +19,7 @@ def apply_along_axis2(func1d,axis,X,Y):
         return func1d(z[:split],z[split:])
 
     return np.apply_along_axis(aux,axis,Z)
+
+def identity(x):
+    """Identity function"""
+    return x
