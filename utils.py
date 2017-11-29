@@ -23,3 +23,7 @@ def apply_along_axis2(func1d,axis,X,Y):
 def identity(x):
     """Identity function"""
     return x
+
+def zero_fun(x):
+    """Null function"""
+    return 0

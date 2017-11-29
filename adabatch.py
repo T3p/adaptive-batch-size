@@ -11,6 +11,8 @@ from gradient_estimation import performance, Estimator
 
 import time
 import signal
+import tables
+from utils import zero_fun
 
 
 #Trajectory (can be run in parallel)
@@ -25,7 +27,7 @@ def __trajectory(env,tp,pol,feature_fun,traces,n,initial=None,noises=[]):
         s,r,_,_ = env.step(a)
         traces[n,l] = np.concatenate((np.atleast_1d(phi),np.atleast_1d(a),np.atleast_1d(r)))
 
-def learn(env,tp,pol,feature_fun,constr,bound_name='bernstein',estimator_name='gpomdp',emp=True,parallel=True,verbose=1):
+def learn(env,tp,pol,feature_fun,constr,bound_name='bernstein',estimator_name='gpomdp',emp=True,evaluate=zero_fun,parallel=True,filename='record.h5',verbose=1):
     """
         Vanilla policy gradient with adaptive step size and batch size
         
@@ -42,7 +44,7 @@ def learn(env,tp,pol,feature_fun,constr,bound_name='bernstein',estimator_name='g
         verbose -- how much printing
     """
     #Initial batch size
-    N = constr.N_min   
+    N = N_old = constr.N_min   
 
     #Optimizer settings
     grad_estimator = Estimator(estimator_name)
@@ -54,11 +56,18 @@ def learn(env,tp,pol,feature_fun,constr,bound_name='bernstein',estimator_name='g
         traces_path = os.path.join(path,'traces.mmap')
         n_cores = multiprocessing.cpu_count()
 
+    #Record
+    entry_size = 5
+    fp = tables.open_file(filename,mode='w')
+    atom = tables.Float32Atom()
+    record = fp.create_earray(fp.root,'data',atom,(0,entry_size))
+
     #Initial print
     if verbose:
         print 'Estimator: ', estimator_name,  ' Bound: ', bound_name,  ' Empirical range: ', emp,  ' delta =', constr.delta
         print 'Start Experiment'
         print  
+
 
     #Learning 
     iteration = 0
@@ -91,7 +100,8 @@ def learn(env,tp,pol,feature_fun,constr,bound_name='bernstein',estimator_name='g
         g_stats = GradStats(grad_samples)
 
         #Performance statistics 
-        J = performance(rewards,tp.gamma) 
+        J_hat = performance(rewards,tp.gamma)
+        J = evaluate(pol) 
 
         #Check if done
         N_tot+=N
@@ -99,23 +109,35 @@ def learn(env,tp,pol,feature_fun,constr,bound_name='bernstein',estimator_name='g
             print 'Total N reached'
             print 'End experiment'
             break
+
         #Meta-optimization
-        alpha,N,safe = meta_selector.select(pol,g_stats,tp,N)
+        alpha,N,safe = meta_selector.select(pol,g_stats,tp,N_old)
         if not safe and verbose:
             print "Unsafe update!"
+
+        #Record [N, alpha, k, J, J^]
+        k = g_stats.get_amax()
+        entry = np.array([[N_old,alpha[k],k,J,J_hat]])
+        record.append(entry)
+        N_old = N
 
         #Optimization
         pol.update(alpha*g_stats.get_estimate()) 
 
         #Print after
         if verbose:
-            print 'alpha =', alpha,  ' J^ =', J
+            print 'alpha =', alpha,  ' J =', J,  ' J^ =', J_hat
             print 'time: ', time.time() - start_time
             print
 
         #Manual stop
         signal.signal(signal.SIGINT, signal_handler)
+    
+    #Cleanup
+    fp.close()
 
+
+#Handle Ctrl-C
 def signal_handler(signal,frame):
     sys.exit(0)
 
