@@ -1,7 +1,0 @@
-Estimator,Bound,Delta,Ups,Low,High
-reinforce,chebyshev,0.95,-11.3266,-11.3277,-11.3256
-reinforce,chebyshev,0.75,-11.4303,-11.4308,-11.4297
-reinforce,chebyshev,0.5,-11.5947,-11.5958,-11.5937
-gpomdp,chebyshev,0.95,-10.6085,-10.6087,-10.6083
-gpomdp,chebyshev,0.75,-10.7141,-10.7145,-10.7136
-gpomdp,chebyshev,0.5,-10.9036,-10.904,-10.9031
