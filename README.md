@@ -13,8 +13,8 @@ Here we provide the code to try the new algorithms on the **Linear Quadratic Gau
 
 
 **Replicating the experiments**\
-To replicate all the experiments of the paper, just clone the repository locally and run **exp_full.py**.
-*Warning*: it may take a *long* time, so you may want to comment some lines of the script.
+To replicate all the experiments of the paper, just clone the repository locally and run **exp_full.py**.\
+*Warning*: it may take a *long* time, so you may want to comment out some lines of the script.
 
 **Testing on other tasks**\
 The main algorithm is in **adabatch.py**. To test the methods on other tasks, you can modify the LQG experiment in **exp_lqg1d.py**.
