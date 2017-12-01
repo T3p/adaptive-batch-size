@@ -22,7 +22,7 @@ The results are saved in **results/** as *.h5* files. Each file corresponds to a
 * The value of the step size
 * The index of the updated coordinate
 * The expected performance
-* The measured performance
+* The measured performance\
 Single learning curves can be plotted with **plot__results.py**.
 The data used to plot the results in the paper, already averaged over 5 trials, are available in **processed_data/** as text files.
 
