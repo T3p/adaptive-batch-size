@@ -14,7 +14,17 @@ Here we provide the code to try the new algorithms on the **Linear Quadratic Gau
 
 **Replicating the experiments**\
 To replicate all the experiments of the paper, just clone the repository locally and run **exp_full.py**.\
-*Warning*: it may take a *long* time, so you may want to comment out some lines of the script.
+*Warning*: it may take a *long* time, so you may want to comment out some lines of the script to run single experiments.
+
+**Results**\
+The results are saved in **results/** as *.h5* files. Each file corresponds to a single learning curve. Each entry (one per epoch) contains:
+* N the batch
+* The value of the step size
+* The index of the updated coordinate
+* The expected performance
+* The measured performance
+Single learning curves can be plotted with **plot__results.py**.
+The data used to plot the results in the paper, already averaged over 5 trials, are available in **processed_data/** as text files.
 
 **Testing on other tasks**\
 The main algorithm is in **adabatch.py**. To test the methods on other tasks, you can modify the LQG experiment in **exp_lqg1d.py**.
