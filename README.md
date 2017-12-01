@@ -17,5 +17,4 @@ To replicate all the experiments of the paper, just clone the repository locally
 *Warning*: it may take a *long* time, so you may want to comment some lines of the script.
 
 **Testing on other tasks**\
-
 The main algorithm is in **adabatch.py**. To test the methods on other tasks, you can modify the LQG experiment in **exp_lqg1d.py**.
