@@ -18,7 +18,7 @@ To replicate all the experiments of the paper, just clone the repository locally
 
 **Results**\
 The results are saved in **results/** as *.h5* files. Each file corresponds to a single learning curve. Each entry (one per epoch) contains:
-* N the batch
+* The batch size
 * The value of the step size
 * The index of the updated coordinate
 * The expected performance
